@@ -204,7 +204,6 @@ discrimination_score:
       draft,
       auditReason: "監査レスポンスが空だったため元の草案を採用",
       corrected: false,
-      corrected: false,
       difficultyScore: 3,
       clinicalAccuracyScore: 2,
       discriminationScore: 2,

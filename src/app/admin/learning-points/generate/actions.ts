@@ -3,6 +3,16 @@
 import { prisma } from "@/lib/prisma";
 import { generateLearningPointCandidates } from "@/lib/learning-point-generator";
 import { redirect } from "next/navigation";
+import { Difficulty } from "@prisma/client";
+
+function isDifficulty(value: string | null | undefined): value is Difficulty {
+  return (
+    value === "CORE" ||
+    value === "STANDARD" ||
+    value === "HARD" ||
+    value === "INSANE"
+  );
+}
 
 export async function generateLearningPointCandidatesAction(formData: FormData) {
   const topic = (formData.get("topic") as string)?.trim();
@@ -10,7 +20,7 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
   const sourceId = ((formData.get("sourceId") as string)?.trim() || "") || null;
   const keywords = (formData.get("keywords") as string)?.trim() || "";
   const countRaw = (formData.get("count") as string)?.trim() || "5";
-  const targetDifficulty = (formData.get("targetDifficulty") as string)?.trim() || "";
+  const targetDifficultyRaw = (formData.get("targetDifficulty") as string)?.trim();
 
   if (!topic) {
     throw new Error("topic は必須です。");
@@ -18,13 +28,17 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
 
   const count = Math.min(Math.max(Number(countRaw) || 5, 1), 10);
 
+  const targetDifficulty = isDifficulty(targetDifficultyRaw)
+    ? targetDifficultyRaw
+    : undefined;
+
   const candidates = await generateLearningPointCandidates({
     topic,
     subtopic,
     sourceId,
     keywords,
     count,
-    targetDifficulty: targetDifficulty || undefined,
+    targetDifficulty,
   });
 
   return {
@@ -33,7 +47,7 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
     sourceId,
     keywords,
     count,
-    targetDifficulty,
+    targetDifficulty: targetDifficulty ?? "",
     candidates,
   };
 }
