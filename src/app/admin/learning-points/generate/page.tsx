@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import {
-  generateLearningPointCandidatesAction,
-  saveLearningPointCandidate,
-} from "./actions";
+import { generateLearningPointCandidatesAction } from "./actions";
+import LearningPointCandidatesForm from "./LearningPointCandidatesForm";
 
-function formatDifficulty(value: string) {
+export function formatDifficulty(value: string) {
   switch (value) {
     case "CORE":
       return "必修";
@@ -20,7 +18,7 @@ function formatDifficulty(value: string) {
   }
 }
 
-function formatQuestionStyle(value: string) {
+export function formatQuestionStyle(value: string) {
   switch (value) {
     case "FACT":
       return "知識";
@@ -43,6 +41,7 @@ export default async function GenerateLearningPointsPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
+
   const sources = await prisma.source.findMany({
     orderBy: { title: "asc" },
   });
@@ -158,11 +157,7 @@ export default async function GenerateLearningPointsPage({
               <label className="mb-2 block text-sm font-medium">希望難易度</label>
               <select
                 name="targetDifficulty"
-                defaultValue={
-                  typeof resolvedSearchParams.targetDifficulty === "string"
-                    ? resolvedSearchParams.targetDifficulty
-                    : ""
-                }
+                defaultValue={targetDifficulty}
                 className="w-full rounded-xl border px-4 py-3"
               >
                 <option value="">指定しない</option>
@@ -174,9 +169,7 @@ export default async function GenerateLearningPointsPage({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">
-                生成件数
-              </label>
+              <label className="mb-2 block text-sm font-medium">生成件数</label>
               <select
                 name="count"
                 defaultValue={count}
@@ -214,75 +207,12 @@ export default async function GenerateLearningPointsPage({
       </form>
 
       {result && (
-        <section className="mt-6 space-y-4">
-          <h2 className="text-lg font-semibold">生成候補</h2>
-
-          {result.candidates.map((candidate, index) => (
-            <div
-              key={`${candidate.title}-${index}`}
-              className="rounded-2xl border bg-white p-6 shadow-sm"
-            >
-              <div className="mb-3 flex flex-wrap gap-2">
-                <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
-                  {formatDifficulty(candidate.difficulty)}
-                </span>
-                <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
-                  {formatQuestionStyle(candidate.questionStyle)}
-                </span>
-              </div>
-
-              <h3 className="text-lg font-semibold">{candidate.title}</h3>
-
-              <div className="mt-4 space-y-4 text-sm leading-7">
-                <div>
-                  <p className="mb-1 font-medium">learning point</p>
-                  <p>{candidate.learningPoint}</p>
-                </div>
-
-                <div>
-                  <p className="mb-1 font-medium">意図</p>
-                  <p>{candidate.rationale}</p>
-                </div>
-
-                <div>
-                  <p className="mb-1 font-medium">タグ</p>
-                  <p>{candidate.tags.join(", ") || "なし"}</p>
-                </div>
-              </div>
-
-              <form action={saveLearningPointCandidate} className="mt-5">
-                <input type="hidden" name="topic" value={result.topic} />
-                <input type="hidden" name="subtopic" value={result.subtopic} />
-                <input type="hidden" name="sourceId" value={result.sourceId ?? ""} />
-                <input type="hidden" name="title" value={candidate.title} />
-                <input
-                  type="hidden"
-                  name="learningPoint"
-                  value={candidate.learningPoint}
-                />
-                <input type="hidden" name="rationale" value={candidate.rationale} />
-                <input type="hidden" name="difficulty" value={candidate.difficulty} />
-                <input
-                  type="hidden"
-                  name="questionStyle"
-                  value={candidate.questionStyle}
-                />
-                <input
-                  type="hidden"
-                  name="tags"
-                  value={candidate.tags.join(", ")}
-                />
-
-                <button
-                  type="submit"
-                  className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-700 hover:bg-green-100"
-                >
-                  この候補を保存
-                </button>
-              </form>
-            </div>
-          ))}
-        </section>
+        <LearningPointCandidatesForm
+          topic={result.topic}
+          subtopic={result.subtopic}
+          sourceId={result.sourceId ?? ""}
+          candidates={result.candidates}
+        />
       )}
     </main>
   );
