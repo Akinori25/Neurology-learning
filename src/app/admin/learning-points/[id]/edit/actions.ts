@@ -4,33 +4,74 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Difficulty, QuestionStyle } from "@prisma/client";
 
+function getTrimmedString(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function isDifficulty(value: string | null | undefined): value is Difficulty {
+  return (
+    value === "CORE" ||
+    value === "STANDARD" ||
+    value === "HARD" ||
+    value === "INSANE"
+  );
+}
+
+function isQuestionStyle(
+  value: string | null | undefined
+): value is QuestionStyle {
+  return (
+    value === "FACT" ||
+    value === "CASE" ||
+    value === "DIFFERENTIAL" ||
+    value === "TREATMENT" ||
+    value === "IMAGE"
+  );
+}
+
 export async function updateLearningPoint(formData: FormData) {
-  const id = formData.get("id") as string;
+  const id = getTrimmedString(formData, "id");
 
   if (!id) {
     throw new Error("論点IDがありません。");
   }
 
-  const topic = (formData.get("topic") as string)?.trim();
-  const subtopic = (formData.get("subtopic") as string)?.trim() || null;
-  const title = (formData.get("title") as string)?.trim();
-  const learningPoint = (formData.get("learningPoint") as string)?.trim();
-  const rationale = (formData.get("rationale") as string)?.trim() || null;
-  const difficulty = formData.get("difficulty") as Difficulty;
-  const questionStyle = formData.get("questionStyle") as QuestionStyle;
-  const tagsRaw = (formData.get("tags") as string)?.trim() || "";
-  const sourceId = ((formData.get("sourceId") as string)?.trim() || null) || null;
-  const imageAssetId =
-    ((formData.get("imageAssetId") as string)?.trim() || null) || null;
+  const topic = getTrimmedString(formData, "topic");
+  const subtopic = getTrimmedString(formData, "subtopic") || null;
+  const title = getTrimmedString(formData, "title");
+  const learningPoint = getTrimmedString(formData, "learningPoint");
+  const rationale = getTrimmedString(formData, "rationale") || null;
+  const difficultyRaw = getTrimmedString(formData, "difficulty");
+  const questionStyleRaw = getTrimmedString(formData, "questionStyle");
+  const tagsRaw = getTrimmedString(formData, "tags");
+  const sourceId = getTrimmedString(formData, "sourceId") || null;
+  const imageAssetId = getTrimmedString(formData, "imageAssetId") || null;
 
   if (!topic || !title || !learningPoint) {
     throw new Error("必須項目が不足しています。");
+  }
+
+  if (!isDifficulty(difficultyRaw)) {
+    throw new Error("難易度が不正です。");
+  }
+
+  if (!isQuestionStyle(questionStyleRaw)) {
+    throw new Error("問題形式が不正です。");
   }
 
   const tags = tagsRaw
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+
+  const existing = await prisma.learningPoint.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error("論点が見つかりません。");
+  }
 
   await prisma.learningPoint.update({
     where: { id },
@@ -41,8 +82,8 @@ export async function updateLearningPoint(formData: FormData) {
       title,
       learningPoint,
       rationale,
-      difficulty,
-      questionStyle,
+      difficulty: difficultyRaw,
+      questionStyle: questionStyleRaw,
       tags,
     },
   });

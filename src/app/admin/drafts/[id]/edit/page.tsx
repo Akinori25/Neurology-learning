@@ -3,6 +3,51 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updateDraft } from "./actions";
 
+function formatQuestionStyle(style: string) {
+  switch (style) {
+    case "FACT":
+      return "知識";
+    case "CASE":
+      return "症例";
+    case "DIFFERENTIAL":
+      return "鑑別";
+    case "TREATMENT":
+      return "治療";
+    case "IMAGE":
+      return "画像";
+    default:
+      return style;
+  }
+}
+
+function formatDifficulty(difficulty: string) {
+  switch (difficulty) {
+    case "CORE":
+      return "CORE";
+    case "STANDARD":
+      return "STANDARD";
+    case "HARD":
+      return "HARD";
+    case "INSANE":
+      return "INSANE";
+    default:
+      return difficulty;
+  }
+}
+
+function formatLearningPointOrigin(origin: string) {
+  switch (origin) {
+    case "MANUAL":
+      return "手動作成";
+    case "LLM":
+      return "LLM生成";
+    case "SOURCE_LLM":
+      return "資料読込LLM生成";
+    default:
+      return origin;
+  }
+}
+
 export default async function DraftEditPage({
   params,
 }: {
@@ -61,11 +106,22 @@ export default async function DraftEditPage({
               </p>
               <p className="mt-2">
                 <span className="font-medium">形式:</span>{" "}
-                {draft.learningPoint.questionStyle}
+                {formatQuestionStyle(draft.learningPoint.questionStyle)}
               </p>
               <p className="mt-2">
                 <span className="font-medium">難易度:</span>{" "}
-                {draft.learningPoint.difficulty}
+                {formatDifficulty(draft.learningPoint.difficulty)}
+              </p>
+              <p className="mt-2">
+                <span className="font-medium">作成方法:</span>{" "}
+                {formatLearningPointOrigin(draft.learningPoint.origin)}
+              </p>
+              <p className="mt-2">
+                <span className="font-medium">現在の版:</span> v{draft.version}
+              </p>
+              <p className="mt-2">
+                <span className="font-medium">公開状態:</span>{" "}
+                {draft.isPublished ? "公開中" : "下書き"}
               </p>
             </div>
 
@@ -224,19 +280,6 @@ export default async function DraftEditPage({
                 />
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">レビューコメント</h2>
-
-          <div>
-            <textarea
-              name="reviewerComment"
-              defaultValue={draft.reviewerComment ?? ""}
-              rows={4}
-              className="w-full rounded-xl border px-4 py-3"
-            />
           </div>
         </section>
 

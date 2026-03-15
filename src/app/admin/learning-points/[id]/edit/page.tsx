@@ -3,6 +3,19 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updateLearningPoint } from "./actions";
 
+function formatOrigin(value: string) {
+  switch (value) {
+    case "MANUAL":
+      return "手動作成";
+    case "LLM":
+      return "LLM生成";
+    case "SOURCE_LLM":
+      return "資料読込LLM生成";
+    default:
+      return value;
+  }
+}
+
 export default async function EditLearningPointPage({
   params,
 }: {
@@ -60,6 +73,16 @@ export default async function EditLearningPointPage({
 
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">基本情報</h2>
+
+          <div className="mb-4 rounded-xl border bg-gray-50 p-4 text-sm text-gray-700">
+            <p>
+              <span className="font-medium">作成方法:</span>{" "}
+              {formatOrigin(learningPoint.origin)}
+            </p>
+            <p className="mt-2 text-xs text-gray-500">
+              作成方法はこの画面では変更できません。
+            </p>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>

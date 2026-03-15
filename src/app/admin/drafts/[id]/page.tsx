@@ -1,29 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  approveDraft,
-  rejectDraft,
-  publishDraft,
-  unpublishDraft,
-  deleteDraft,
-} from "./actions";
+import { publishDraft, unpublishDraft, deleteDraft } from "./actions";
 import { ActionButton } from "@/components/admin/DraftActionButtons";
 
-function formatStatus(status: string) {
-  switch (status) {
-    case "DRAFT":
-      return "下書き";
-    case "APPROVED":
-      return "承認済み";
-    case "REJECTED":
-      return "却下";
-    default:
-      return status;
-  }
-}
+function formatDate(date: Date | null | undefined) {
+  if (!date) return "未設定";
 
-function formatDate(date: Date) {
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -31,6 +14,51 @@ function formatDate(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatLearningPointOrigin(origin: string) {
+  switch (origin) {
+    case "MANUAL":
+      return "手動作成";
+    case "LLM":
+      return "LLM生成";
+    case "SOURCE_LLM":
+      return "資料読込LLM生成";
+    default:
+      return origin;
+  }
+}
+
+function formatQuestionStyle(style: string) {
+  switch (style) {
+    case "FACT":
+      return "知識";
+    case "CASE":
+      return "症例";
+    case "DIFFERENTIAL":
+      return "鑑別";
+    case "TREATMENT":
+      return "治療";
+    case "IMAGE":
+      return "画像";
+    default:
+      return style;
+  }
+}
+
+function formatDifficulty(difficulty: string) {
+  switch (difficulty) {
+    case "CORE":
+      return "CORE";
+    case "STANDARD":
+      return "STANDARD";
+    case "HARD":
+      return "HARD";
+    case "INSANE":
+      return "INSANE";
+    default:
+      return difficulty;
+  }
 }
 
 function cardClassName() {
@@ -57,7 +85,6 @@ export default async function DraftDetailPage({
     include: {
       learningPoint: true,
       imageAsset: true,
-      published: true,
       citations: {
         include: {
           sourceChunk: {
@@ -65,6 +92,13 @@ export default async function DraftDetailPage({
               source: true,
             },
           },
+        },
+      },
+      goods: true,
+      raiseHands: true,
+      setItems: {
+        include: {
+          questionSet: true,
         },
       },
     },
@@ -79,12 +113,14 @@ export default async function DraftDetailPage({
     { key: "D", text: draft.choiceD },
   ];
 
-  const isPublished = draft.published?.publishStatus === "ACTIVE";
+  const isPublished = draft.isPublished;
+  const goodCount = draft.goods.length;
+  const raiseHandCount = draft.raiseHands.length;
+  const questionSetCount = draft.setItems.length;
 
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
         <section className="mb-8 flex flex-col gap-4 border-b border-gray-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -97,22 +133,17 @@ export default async function DraftDetailPage({
 
           <div className="flex flex-col gap-2 sm:w-52">
             <Link href="/admin/drafts" className={actionLinkClassName()}>
-              <div className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50">
               草案一覧へ戻る
-              </div>
             </Link>
             <Link
               href={`/admin/learning-points/${draft.learningPoint.id}`}
               className={actionLinkClassName()}
             >
-              <div className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
               論点詳細へ
-              </div>
             </Link>
           </div>
         </section>
 
-        {/* Primary actions */}
         <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap gap-3">
             <Link
@@ -121,20 +152,6 @@ export default async function DraftDetailPage({
             >
               編集
             </Link>
-
-            <ActionButton
-              action={approveDraft}
-              id={draft.id}
-              label="承認"
-              className="inline-flex items-center justify-center rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 shadow-sm transition hover:bg-green-100"
-            />
-
-            <ActionButton
-              action={rejectDraft}
-              id={draft.id}
-              label="却下"
-              className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-100"
-            />
 
             {isPublished ? (
               <ActionButton
@@ -172,27 +189,29 @@ export default async function DraftDetailPage({
           </div>
         </section>
 
-        {/* Main layout */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-          {/* Left column */}
           <div className="space-y-6">
             <section className={cardClassName()}>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700">
-                  {formatStatus(draft.status)}
+                <span
+                  className={
+                    isPublished
+                      ? "rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700"
+                      : "rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700"
+                  }
+                >
+                  {isPublished ? "公開中" : "下書き"}
                 </span>
-
-                {isPublished && (
-                  <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                    公開中
-                  </span>
-                )}
 
                 {draft.hasImage && draft.imageAsset && (
                   <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                     画像問題
                   </span>
                 )}
+
+                <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
+                  {formatLearningPointOrigin(draft.learningPoint.origin)}
+                </span>
               </div>
 
               <h2 className="mb-6 text-2xl font-semibold leading-9 text-gray-900">
@@ -248,10 +267,22 @@ export default async function DraftDetailPage({
                     各選択肢の解説
                   </h3>
                   <div className="space-y-3 text-sm leading-6 text-gray-700">
-                    <p><span className="font-medium text-gray-900">A:</span> {draft.explanationA ?? "未記載"}</p>
-                    <p><span className="font-medium text-gray-900">B:</span> {draft.explanationB ?? "未記載"}</p>
-                    <p><span className="font-medium text-gray-900">C:</span> {draft.explanationC ?? "未記載"}</p>
-                    <p><span className="font-medium text-gray-900">D:</span> {draft.explanationD ?? "未記載"}</p>
+                    <p>
+                      <span className="font-medium text-gray-900">A:</span>{" "}
+                      {draft.explanationA ?? "未記載"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">B:</span>{" "}
+                      {draft.explanationB ?? "未記載"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">C:</span>{" "}
+                      {draft.explanationC ?? "未記載"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">D:</span>{" "}
+                      {draft.explanationD ?? "未記載"}
+                    </p>
                   </div>
                 </div>
 
@@ -260,23 +291,107 @@ export default async function DraftDetailPage({
                     生成情報
                   </h3>
                   <div className="space-y-2 text-sm leading-6 text-gray-700">
-                    <p><span className="font-medium text-gray-900">モデル:</span> {draft.llmModel ?? "未設定"}</p>
-                    <p><span className="font-medium text-gray-900">Prompt version:</span> {draft.promptVersion ?? "未設定"}</p>
-                    <p><span className="font-medium text-gray-900">更新日時:</span> {formatDate(draft.updatedAt)}</p>
-                    <p><span className="font-medium text-gray-900">版:</span> v{draft.version}</p>
+                    <p>
+                      <span className="font-medium text-gray-900">モデル:</span>{" "}
+                      {draft.llmModel ?? "未設定"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">
+                        Prompt version:
+                      </span>{" "}
+                      {draft.promptVersion ?? "未設定"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">
+                        作成日時:
+                      </span>{" "}
+                      {formatDate(draft.createdAt)}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">
+                        更新日時:
+                      </span>{" "}
+                      {formatDate(draft.updatedAt)}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">公開日時:</span>{" "}
+                      {formatDate(draft.publishedAt)}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-900">版:</span> v
+                      {draft.version}
+                    </p>
 
                     {draft.generationMeta &&
                       typeof draft.generationMeta === "object" &&
                       !Array.isArray(draft.generationMeta) && (
                         <>
-                          <p><span className="font-medium text-gray-900">取得chunk数:</span> {"retrievedChunkCount" in draft.generationMeta ? String(draft.generationMeta.retrievedChunkCount) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">根拠資料あり:</span> {"hasEvidence" in draft.generationMeta ? String(draft.generationMeta.hasEvidence) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">監査実施:</span> {"audited" in draft.generationMeta ? String(draft.generationMeta.audited) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">監査補正:</span> {"auditCorrected" in draft.generationMeta ? String(draft.generationMeta.auditCorrected) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">生成時刻:</span> {"generatedAt" in draft.generationMeta ? String(draft.generationMeta.generatedAt) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">難易度スコア:</span> {"difficultyScore" in draft.generationMeta ? String(draft.generationMeta.difficultyScore) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">医学的妥当性:</span> {"clinicalAccuracyScore" in draft.generationMeta ? String(draft.generationMeta.clinicalAccuracyScore) : "不明"}</p>
-                          <p><span className="font-medium text-gray-900">弁別性:</span> {"discriminationScore" in draft.generationMeta ? String(draft.generationMeta.discriminationScore) : "不明"}</p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              取得chunk数:
+                            </span>{" "}
+                            {"retrievedChunkCount" in draft.generationMeta
+                              ? String(draft.generationMeta.retrievedChunkCount)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              根拠資料あり:
+                            </span>{" "}
+                            {"hasEvidence" in draft.generationMeta
+                              ? String(draft.generationMeta.hasEvidence)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              監査実施:
+                            </span>{" "}
+                            {"audited" in draft.generationMeta
+                              ? String(draft.generationMeta.audited)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              監査補正:
+                            </span>{" "}
+                            {"auditCorrected" in draft.generationMeta
+                              ? String(draft.generationMeta.auditCorrected)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              生成時刻:
+                            </span>{" "}
+                            {"generatedAt" in draft.generationMeta
+                              ? String(draft.generationMeta.generatedAt)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              難易度スコア:
+                            </span>{" "}
+                            {"difficultyScore" in draft.generationMeta
+                              ? String(draft.generationMeta.difficultyScore)
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              医学的妥当性:
+                            </span>{" "}
+                            {"clinicalAccuracyScore" in draft.generationMeta
+                              ? String(
+                                  draft.generationMeta.clinicalAccuracyScore
+                                )
+                              : "不明"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-900">
+                              弁別性:
+                            </span>{" "}
+                            {"discriminationScore" in draft.generationMeta
+                              ? String(draft.generationMeta.discriminationScore)
+                              : "不明"}
+                          </p>
 
                           {"auditReason" in draft.generationMeta && (
                             <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
@@ -302,45 +417,61 @@ export default async function DraftDetailPage({
                   </div>
                 </div>
               </div>
-
-              {draft.reviewerComment && (
-                <div className="mt-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-yellow-900">
-                    レビューコメント
-                  </h3>
-                  <p className="text-sm leading-7 text-gray-800">
-                    {draft.reviewerComment}
-                  </p>
-                </div>
-              )}
             </section>
           </div>
 
-          {/* Right column */}
           <div className="space-y-6">
             <section className={cardClassName()}>
               <h3 className={sectionTitleClassName()}>論点情報</h3>
 
               <div className="grid gap-4 text-sm sm:grid-cols-1">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">タイトル</p>
-                  <p className="mt-1 text-sm text-gray-900">{draft.learningPoint.title}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    タイトル
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {draft.learningPoint.title}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">トピック</p>
-                  <p className="mt-1 text-sm text-gray-900">{draft.learningPoint.topic}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    トピック
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {draft.learningPoint.topic}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">サブトピック</p>
-                  <p className="mt-1 text-sm text-gray-900">{draft.learningPoint.subtopic ?? "未設定"}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    サブトピック
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {draft.learningPoint.subtopic ?? "未設定"}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">形式</p>
-                  <p className="mt-1 text-sm text-gray-900">{draft.learningPoint.questionStyle}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    形式
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {formatQuestionStyle(draft.learningPoint.questionStyle)}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">難易度</p>
-                  <p className="mt-1 text-sm text-gray-900">{draft.learningPoint.difficulty}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    難易度
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {formatDifficulty(draft.learningPoint.difficulty)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    作成方法
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {formatLearningPointOrigin(draft.learningPoint.origin)}
+                  </p>
                 </div>
               </div>
 
@@ -349,14 +480,61 @@ export default async function DraftDetailPage({
               </div>
             </section>
 
+            <section className={cardClassName()}>
+              <h3 className={sectionTitleClassName()}>反応・利用状況</h3>
+              <div className="space-y-3 text-sm leading-6 text-gray-700">
+                <p>
+                  <span className="font-medium text-gray-900">Good数:</span>{" "}
+                  {goodCount}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-900">挙手数:</span>{" "}
+                  {raiseHandCount}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-900">
+                    問題集収載数:
+                  </span>{" "}
+                  {questionSetCount}
+                </p>
+              </div>
+
+              {draft.setItems.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {draft.setItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+                    >
+                      {item.questionSet.title}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {draft.imageAsset && (
               <section className={cardClassName()}>
                 <h3 className={sectionTitleClassName()}>画像メタデータ</h3>
                 <div className="space-y-3 text-sm leading-6 text-gray-700">
-                  <p><span className="font-medium text-gray-900">タイトル:</span> {draft.imageAsset.title}</p>
-                  <p><span className="font-medium text-gray-900">モダリティ:</span> {draft.imageAsset.modality}</p>
-                  <p><span className="font-medium text-gray-900">診断:</span> {draft.imageAsset.diagnosis ?? "未設定"}</p>
-                  <p><span className="font-medium text-gray-900">所見:</span> {draft.imageAsset.findings ?? "未設定"}</p>
+                  <p>
+                    <span className="font-medium text-gray-900">タイトル:</span>{" "}
+                    {draft.imageAsset.title}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">
+                      モダリティ:
+                    </span>{" "}
+                    {draft.imageAsset.modality}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">診断:</span>{" "}
+                    {draft.imageAsset.diagnosis ?? "未設定"}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">所見:</span>{" "}
+                    {draft.imageAsset.findings ?? "未設定"}
+                  </p>
                 </div>
               </section>
             )}
@@ -393,6 +571,38 @@ export default async function DraftDetailPage({
                 </div>
               )}
             </section>
+
+            {draft.raiseHands.length > 0 && (
+              <section className={cardClassName()}>
+                <h3 className={sectionTitleClassName()}>挙手コメント</h3>
+                <div className="space-y-4">
+                  {draft.raiseHands.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-xs text-gray-500">
+                          {formatDate(item.createdAt)}
+                        </span>
+                        <span
+                          className={
+                            item.resolved
+                              ? "rounded-full border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-700"
+                              : "rounded-full border border-yellow-200 bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-700"
+                          }
+                        >
+                          {item.resolved ? "対応済み" : "未対応"}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-7 text-gray-700">
+                        {item.comment}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>

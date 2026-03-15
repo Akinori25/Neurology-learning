@@ -5,27 +5,16 @@ import { GenerateDraftButton } from "@/components/admin/LearningPointActionButto
 import { generateDraftFromLearningPoint, deleteLearningPoint } from "./actions";
 import { DeleteLearningPointButton } from "@/components/admin/DeleteLearningPointButton";
 
-function formatStatus(status: string) {
-  switch (status) {
-    case "DRAFT":
-      return "下書き";
-    case "APPROVED":
-      return "承認済み";
-    case "REJECTED":
-      return "却下";
-    default:
-      return status;
-  }
-}
-
 function formatDifficulty(value: string) {
   switch (value) {
-    case "BASIC":
-      return "基本";
+    case "CORE":
+      return "CORE";
     case "STANDARD":
-      return "標準";
+      return "STANDARD";
     case "HARD":
-      return "難";
+      return "HARD";
+    case "INSANE":
+      return "INSANE";
     default:
       return value;
   }
@@ -48,6 +37,31 @@ function formatQuestionStyle(value: string) {
   }
 }
 
+function formatOrigin(value: string) {
+  switch (value) {
+    case "MANUAL":
+      return "手動作成";
+    case "LLM":
+      return "LLM生成";
+    case "SOURCE_LLM":
+      return "資料読込LLM生成";
+    default:
+      return value;
+  }
+}
+
+function formatDate(date: Date | null | undefined) {
+  if (!date) return "未設定";
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export default async function LearningPointDetailPage({
   params,
 }: {
@@ -66,7 +80,6 @@ export default async function LearningPointDetailPage({
       },
       drafts: {
         include: {
-          published: true,
           imageAsset: true,
         },
         orderBy: {
@@ -120,13 +133,13 @@ export default async function LearningPointDetailPage({
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
-                {formatStatus(learningPoint.status)}
-              </span>
-              <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
                 {formatQuestionStyle(learningPoint.questionStyle)}
               </span>
               <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
                 {formatDifficulty(learningPoint.difficulty)}
+              </span>
+              <span className="rounded-full border bg-purple-50 px-3 py-1 text-xs text-purple-700">
+                {formatOrigin(learningPoint.origin)}
               </span>
             </div>
 
@@ -142,17 +155,12 @@ export default async function LearningPointDetailPage({
                 <p className="text-sm leading-7">{learningPoint.rationale}</p>
               </div>
             )}
-
-            {learningPoint.reviewerComment && (
-              <div className="mt-4 rounded-xl border bg-yellow-50 p-4">
-                <h3 className="mb-2 font-semibold">レビューコメント</h3>
-                <p className="text-sm leading-7">{learningPoint.reviewerComment}</p>
-              </div>
-            )}
           </section>
 
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">この論点から作られた草案</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              この論点から作られた草案
+            </h3>
 
             {learningPoint.drafts.length === 0 ? (
               <p className="text-sm text-gray-500">まだ草案はありません。</p>
@@ -161,22 +169,36 @@ export default async function LearningPointDetailPage({
                 {learningPoint.drafts.map((draft) => (
                   <div key={draft.id} className="rounded-xl border p-4">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                        {formatStatus(draft.status)}
+                      <span
+                        className={
+                          draft.isPublished
+                            ? "rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700"
+                            : "rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700"
+                        }
+                      >
+                        {draft.isPublished ? "公開中" : "下書き"}
                       </span>
-                      {draft.published?.publishStatus === "ACTIVE" && (
-                        <span className="rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
-                          公開中
-                        </span>
-                      )}
                       {draft.hasImage && (
                         <span className="rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
                           画像問題
                         </span>
                       )}
+                      <span className="rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                        v{draft.version}
+                      </span>
                     </div>
 
                     <p className="font-medium leading-7">{draft.stem}</p>
+
+                    <div className="mt-2 text-xs text-gray-500">
+                      更新: {formatDate(draft.updatedAt)}
+                      {draft.isPublished && (
+                        <>
+                          {" "}
+                          / 公開: {formatDate(draft.publishedAt)}
+                        </>
+                      )}
+                    </div>
 
                     <div className="mt-3">
                       <Link
@@ -213,6 +235,14 @@ export default async function LearningPointDetailPage({
               <p>
                 <span className="font-medium">資料:</span>{" "}
                 {learningPoint.source?.title ?? "未設定"}
+              </p>
+              <p>
+                <span className="font-medium">作成方法:</span>{" "}
+                {formatOrigin(learningPoint.origin)}
+              </p>
+              <p>
+                <span className="font-medium">最終生成:</span>{" "}
+                {formatDate(learningPoint.lastGeneratedAt)}
               </p>
             </div>
           </section>

@@ -1,31 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
-function formatStatus(status: string) {
-  switch (status) {
-    case "DRAFT":
-      return "下書き";
-    case "APPROVED":
-      return "承認済み";
-    case "REJECTED":
-      return "却下";
-    default:
-      return status;
-  }
-}
-
-function statusBadgeClass(status: string) {
-  switch (status) {
-    case "APPROVED":
-      return "bg-green-100 text-green-700 border-green-200";
-    case "REJECTED":
-      return "bg-red-100 text-red-700 border-red-200";
-    case "DRAFT":
-    default:
-      return "bg-yellow-100 text-yellow-700 border-yellow-200";
-  }
-}
-
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
@@ -36,13 +11,60 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function formatQuestionStyle(style: string) {
+  switch (style) {
+    case "FACT":
+      return "知識";
+    case "CASE":
+      return "症例";
+    case "DIFFERENTIAL":
+      return "鑑別";
+    case "TREATMENT":
+      return "治療";
+    case "IMAGE":
+      return "画像";
+    default:
+      return style;
+  }
+}
+
+function formatDifficulty(difficulty: string) {
+  switch (difficulty) {
+    case "CORE":
+      return "CORE";
+    case "STANDARD":
+      return "STANDARD";
+    case "HARD":
+      return "HARD";
+    case "INSANE":
+      return "INSANE";
+    default:
+      return difficulty;
+  }
+}
+
+function formatLearningPointOrigin(origin: string) {
+  switch (origin) {
+    case "MANUAL":
+      return "手動";
+    case "LLM":
+      return "LLM";
+    case "SOURCE_LLM":
+      return "資料LLM";
+    default:
+      return origin;
+  }
+}
+
 export default async function DraftsPage() {
   const drafts = await prisma.questionDraft.findMany({
     include: {
       learningPoint: true,
       imageAsset: true,
-      published: true,
       citations: true,
+      goods: true,
+      raiseHands: true,
+      setItems: true,
     },
     orderBy: {
       updatedAt: "desc",
@@ -55,7 +77,7 @@ export default async function DraftsPage() {
         <div>
           <h1 className="text-2xl font-bold">問題草案</h1>
           <p className="mt-2 text-sm text-gray-500">
-            草案の確認、承認状況の把握、詳細画面への遷移
+            草案の確認、公開状況の把握、詳細画面への遷移
           </p>
         </div>
 
@@ -81,9 +103,11 @@ export default async function DraftsPage() {
                   <th className="px-4 py-3 font-semibold">論点</th>
                   <th className="px-4 py-3 font-semibold">形式</th>
                   <th className="px-4 py-3 font-semibold">難易度</th>
+                  <th className="px-4 py-3 font-semibold">作成方法</th>
                   <th className="px-4 py-3 font-semibold">画像</th>
                   <th className="px-4 py-3 font-semibold">根拠</th>
-                  <th className="px-4 py-3 font-semibold">状態</th>
+                  <th className="px-4 py-3 font-semibold">反応</th>
+                  <th className="px-4 py-3 font-semibold">問題集</th>
                   <th className="px-4 py-3 font-semibold">公開</th>
                   <th className="px-4 py-3 font-semibold">更新日時</th>
                   <th className="px-4 py-3 font-semibold">操作</th>
@@ -119,11 +143,17 @@ export default async function DraftsPage() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {draft.learningPoint.questionStyle}
+                      {formatQuestionStyle(draft.learningPoint.questionStyle)}
                     </td>
 
                     <td className="px-4 py-4">
-                      {draft.learningPoint.difficulty}
+                      {formatDifficulty(draft.learningPoint.difficulty)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700">
+                        {formatLearningPointOrigin(draft.learningPoint.origin)}
+                      </span>
                     </td>
 
                     <td className="px-4 py-4">
@@ -150,28 +180,46 @@ export default async function DraftsPage() {
                     </td>
 
                     <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${statusBadgeClass(
-                          draft.status
-                        )}`}
-                      >
-                        {formatStatus(draft.status)}
+                      <div className="space-y-1">
+                        <div>
+                          <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
+                            Good {draft.goods.length}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="inline-flex rounded-full border bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
+                            挙手 {draft.raiseHands.length}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <span className="inline-flex rounded-full border bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
+                        {draft.setItems.length}件
                       </span>
                     </td>
 
                     <td className="px-4 py-4">
-                      {draft.published ? (
-                        <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
-                          公開中
-                        </span>
+                      {draft.isPublished ? (
+                        <div className="space-y-1">
+                          <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
+                            公開中
+                          </span>
+                          <p className="text-xs text-gray-500">
+                            {draft.publishedAt
+                              ? formatDate(draft.publishedAt)
+                              : ""}
+                          </p>
+                        </div>
                       ) : (
                         <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
-                          未公開
+                          下書き
                         </span>
                       )}
                     </td>
 
-                    <td className="px-4 py-4 whitespace-nowrap text-gray-600">
+                    <td className="whitespace-nowrap px-4 py-4 text-gray-600">
                       {formatDate(draft.updatedAt)}
                     </td>
 

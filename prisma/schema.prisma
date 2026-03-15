@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -36,17 +36,6 @@ enum QuestionStyle {
   IMAGE
 }
 
-enum ReviewStatus {
-  DRAFT
-  APPROVED
-  REJECTED
-}
-
-enum QuestionPublishStatus {
-  ACTIVE
-  INACTIVE
-}
-
 enum ImageModality {
   MRI
   CT
@@ -65,6 +54,12 @@ enum ImageModality {
 enum ImageAssetStatus {
   ACTIVE
   ARCHIVED
+}
+
+enum LearningPointOrigin {
+  MANUAL
+  LLM
+  SOURCE_LLM
 }
 
 model Source {
@@ -104,32 +99,51 @@ model SourceChunk {
   @@index([sourceId])
 }
 
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  role      String   @default("learner")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  learningPoints LearningPoint[] @relation("LearningPointCreator")
+  questionDrafts QuestionDraft[] @relation("QuestionDraftCreator")
+  questionSets   QuestionSet[]   @relation("QuestionSetCreator")
+
+  attempts      UserAttempt[]
+  goodReactions DraftGood[]
+  raiseHands    DraftRaiseHand[]
+}
+
 model LearningPoint {
-  id              String       @id @default(cuid())
+  id              String              @id @default(cuid())
   sourceId        String?
+  createdById     String?
   topic           String
   subtopic        String?
   title           String
-  learningPoint   String       @db.Text
-  rationale       String?      @db.Text
+  learningPoint   String              @db.Text
+  rationale       String?             @db.Text
   difficulty      Difficulty
   questionStyle   QuestionStyle
   tags            String[]
-  sourcePriority  Int          @default(0)
-  status          ReviewStatus @default(DRAFT)
-  reviewerComment String?      @db.Text
+  sourcePriority  Int                 @default(0)
+  origin          LearningPointOrigin
   lastGeneratedAt DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
-  source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  source    Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdBy User?   @relation("LearningPointCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  drafts      QuestionDraft[]
-  imageLinks  LearningPointImage[]
+  drafts     QuestionDraft[]
+  imageLinks LearningPointImage[]
 
   @@index([topic])
   @@index([subtopic])
-  @@index([status])
+  @@index([origin])
+  @@index([createdById])
 }
 
 model LearningPointImage {
@@ -180,45 +194,51 @@ model ImageAsset {
 }
 
 model QuestionDraft {
-  id              String         @id @default(cuid())
+  id              String   @id @default(cuid())
   learningPointId String
   imageAssetId    String?
-  version         Int            @default(1)
+  createdById     String?
+  version         Int      @default(1)
 
-  stem            String         @db.Text
-  choiceA         String         @db.Text
-  choiceB         String         @db.Text
-  choiceC         String         @db.Text
-  choiceD         String         @db.Text
-  correctAnswer   String
+  stem          String @db.Text
+  choiceA       String @db.Text
+  choiceB       String @db.Text
+  choiceC       String @db.Text
+  choiceD       String @db.Text
+  correctAnswer String
 
-  explanation     String         @db.Text
-  explanationA    String?        @db.Text
-  explanationB    String?        @db.Text
-  explanationC    String?        @db.Text
-  explanationD    String?        @db.Text
+  explanation  String  @db.Text
+  explanationA String? @db.Text
+  explanationB String? @db.Text
+  explanationC String? @db.Text
+  explanationD String? @db.Text
 
-  llmModel        String?
-  promptVersion   String?
-  generationMeta  Json?
+  llmModel       String?
+  promptVersion  String?
+  generationMeta Json?
 
-  status          ReviewStatus   @default(DRAFT)
-  reviewerComment String?        @db.Text
+  hasImage    Boolean  @default(false)
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
 
-  hasImage        Boolean        @default(false)
-
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   learningPoint LearningPoint @relation(fields: [learningPointId], references: [id], onDelete: Cascade)
   imageAsset    ImageAsset?    @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation("QuestionDraftCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  citations QuestionDraftCitation[]
-  published ExamQuestion?
+  citations  QuestionDraftCitation[]
+  attempts   UserAttempt[]
+  goods      DraftGood[]
+  raiseHands DraftRaiseHand[]
+  setItems   QuestionSetItem[]
 
   @@index([learningPointId])
   @@index([imageAssetId])
-  @@index([status])
+  @@index([createdById])
+  @@index([isPublished])
+  @@index([publishedAt])
 }
 
 model QuestionDraftCitation {
@@ -235,44 +255,79 @@ model QuestionDraftCitation {
   @@index([sourceChunkId])
 }
 
-model ExamQuestion {
-  id              String                @id @default(cuid())
-  questionDraftId String                @unique
-  publishStatus   QuestionPublishStatus @default(ACTIVE)
-  publishedAt     DateTime              @default(now())
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+model DraftGood {
+  id              String   @id @default(cuid())
+  questionDraftId String
+  userId          String
+  createdAt       DateTime @default(now())
 
   draft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  attempts UserAttempt[]
-
-  @@index([publishStatus])
+  @@unique([questionDraftId, userId])
+  @@index([questionDraftId])
+  @@index([userId])
 }
 
-model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?  @unique
-  role      String   @default("learner")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model DraftRaiseHand {
+  id              String   @id @default(cuid())
+  questionDraftId String
+  userId          String
+  comment         String   @db.Text
+  resolved        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  attempts UserAttempt[]
+  draft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([questionDraftId])
+  @@index([userId])
+  @@index([resolved])
+}
+
+model QuestionSet {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items     QuestionSetItem[]
+
+  @@index([createdById])
+}
+
+model QuestionSetItem {
+  id              String   @id @default(cuid())
+  questionSetId   String
+  questionDraftId String
+  orderIndex      Int
+  createdAt       DateTime @default(now())
+
+  questionSet QuestionSet   @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  draft       QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+
+  @@unique([questionSetId, questionDraftId])
+  @@unique([questionSetId, orderIndex])
+  @@index([questionSetId])
+  @@index([questionDraftId])
 }
 
 model UserAttempt {
-  id             String   @id @default(cuid())
-  userId         String
-  examQuestionId String
-  selectedAnswer String
-  isCorrect      Boolean
-  answeredAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  userId          String
+  questionDraftId String
+  selectedAnswer  String
+  isCorrect       Boolean
+  answeredAt      DateTime @default(now())
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  examQuestion ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([examQuestionId])
+  @@index([questionDraftId])
   @@index([answeredAt])
 }

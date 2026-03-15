@@ -5,8 +5,12 @@ import { redirect } from "next/navigation";
 import { generateDraftWithLLM } from "@/lib/draft-generator";
 import { prisma } from "@/lib/prisma";
 
+function getTrimmedString(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
 export async function generateDraftFromLearningPoint(formData: FormData) {
-  const learningPointId = formData.get("learningPointId") as string;
+  const learningPointId = getTrimmedString(formData, "learningPointId");
 
   if (!learningPointId) {
     throw new Error("論点IDがありません。");
@@ -17,10 +21,11 @@ export async function generateDraftFromLearningPoint(formData: FormData) {
   revalidatePath("/admin/learning-points");
   revalidatePath(`/admin/learning-points/${learningPointId}`);
   revalidatePath("/admin/drafts");
+  revalidatePath("/quiz");
 }
 
 export async function deleteLearningPoint(formData: FormData) {
-  const learningPointId = formData.get("learningPointId") as string;
+  const learningPointId = getTrimmedString(formData, "learningPointId");
 
   if (!learningPointId) {
     throw new Error("論点IDがありません。");
@@ -32,9 +37,6 @@ export async function deleteLearningPoint(formData: FormData) {
       drafts: {
         select: { id: true },
       },
-      imageLinks: {
-        select: { id: true },
-      },
     },
   });
 
@@ -43,7 +45,9 @@ export async function deleteLearningPoint(formData: FormData) {
   }
 
   if (learningPoint.drafts.length > 0) {
-    throw new Error("草案が紐づいている論点は削除できません。先に草案を整理してください。");
+    throw new Error(
+      "草案が紐づいている論点は削除できません。先に草案を整理してください。"
+    );
   }
 
   await prisma.learningPointImage.deleteMany({
@@ -55,5 +59,7 @@ export async function deleteLearningPoint(formData: FormData) {
   });
 
   revalidatePath("/admin/learning-points");
+  revalidatePath(`/admin/learning-points/${learningPointId}`);
+
   redirect("/admin/learning-points");
 }

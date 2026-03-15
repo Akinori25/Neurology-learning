@@ -45,15 +45,13 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
     : "";
   const mode = params.mode === "random" ? "random" : "latest";
 
-  const where: Prisma.ExamQuestionWhereInput = {
-    publishStatus: "ACTIVE",
+  const where: Prisma.QuestionDraftWhereInput = {
+    isPublished: true,
     ...(selectedTopic || selectedDifficulty
       ? {
-          draft: {
-            learningPoint: {
-              ...(selectedTopic ? { topic: selectedTopic } : {}),
-              ...(selectedDifficulty ? { difficulty: selectedDifficulty } : {}),
-            },
+          learningPoint: {
+            ...(selectedTopic ? { topic: selectedTopic } : {}),
+            ...(selectedDifficulty ? { difficulty: selectedDifficulty } : {}),
           },
         }
       : {}),
@@ -70,11 +68,10 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
   const questions =
     mode === "random"
       ? await prisma.$queryRaw<Array<{ id: string }>>`
-          SELECT eq.id
-          FROM "ExamQuestion" eq
-          JOIN "QuestionDraft" qd ON eq."draftId" = qd.id
+          SELECT qd.id
+          FROM "QuestionDraft" qd
           JOIN "LearningPoint" lp ON qd."learningPointId" = lp.id
-          WHERE eq."publishStatus" = 'ACTIVE'
+          WHERE qd."isPublished" = true
             ${selectedTopic
               ? Prisma.sql`AND lp."topic" = ${selectedTopic}`
               : Prisma.empty}
@@ -87,15 +84,11 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
           const ids = rows.map((r) => r.id);
           if (ids.length === 0) return [];
 
-          const fetched = await prisma.examQuestion.findMany({
+          const fetched = await prisma.questionDraft.findMany({
             where: { id: { in: ids } },
             include: {
-              draft: {
-                include: {
-                  imageAsset: true,
-                  learningPoint: true,
-                },
-              },
+              imageAsset: true,
+              learningPoint: true,
             },
           });
 
@@ -104,15 +97,11 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
             (a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0)
           );
         })
-      : await prisma.examQuestion.findMany({
+      : await prisma.questionDraft.findMany({
           where,
           include: {
-            draft: {
-              include: {
-                imageAsset: true,
-                learningPoint: true,
-              },
-            },
+            imageAsset: true,
+            learningPoint: true,
           },
           orderBy: {
             publishedAt: "desc",
@@ -122,24 +111,24 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
 
   const formattedQuestions = questions.map((q) => ({
     id: q.id,
-    stem: q.draft.stem,
-    choiceA: q.draft.choiceA,
-    choiceB: q.draft.choiceB,
-    choiceC: q.draft.choiceC,
-    choiceD: q.draft.choiceD,
-    correctAnswer: q.draft.correctAnswer,
-    explanation: q.draft.explanation,
-    imageAsset: q.draft.imageAsset
+    stem: q.stem,
+    choiceA: q.choiceA,
+    choiceB: q.choiceB,
+    choiceC: q.choiceC,
+    choiceD: q.choiceD,
+    correctAnswer: q.correctAnswer,
+    explanation: q.explanation,
+    imageAsset: q.imageAsset
       ? {
-          fileUrl: q.draft.imageAsset.fileUrl,
-          title: q.draft.imageAsset.title,
+          fileUrl: q.imageAsset.fileUrl,
+          title: q.imageAsset.title,
         }
       : null,
-    learningPoint: q.draft.learningPoint
+    learningPoint: q.learningPoint
       ? {
-          topic: q.draft.learningPoint.topic,
-          subtopic: q.draft.learningPoint.subtopic,
-          difficulty: q.draft.learningPoint.difficulty,
+          topic: q.learningPoint.topic,
+          subtopic: q.learningPoint.subtopic,
+          difficulty: q.learningPoint.difficulty,
         }
       : null,
   }));

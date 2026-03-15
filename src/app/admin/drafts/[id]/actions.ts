@@ -2,45 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { ReviewStatus, QuestionPublishStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
-
-export async function approveDraft(formData: FormData) {
-  const id = formData.get("id") as string;
-
-  if (!id) {
-    throw new Error("草案IDがありません。");
-  }
-
-  await prisma.questionDraft.update({
-    where: { id },
-    data: {
-      status: ReviewStatus.APPROVED,
-    },
-  });
-
-  revalidatePath("/admin/drafts");
-  revalidatePath(`/admin/drafts/${id}`);
-  revalidatePath("/quiz");
-}
-
-export async function rejectDraft(formData: FormData) {
-  const id = formData.get("id") as string;
-
-  if (!id) {
-    throw new Error("草案IDがありません。");
-  }
-
-  await prisma.questionDraft.update({
-    where: { id },
-    data: {
-      status: ReviewStatus.REJECTED,
-    },
-  });
-
-  revalidatePath("/admin/drafts");
-  revalidatePath(`/admin/drafts/${id}`);
-}
 
 export async function publishDraft(formData: FormData) {
   const id = formData.get("id") as string;
@@ -51,32 +13,19 @@ export async function publishDraft(formData: FormData) {
 
   const draft = await prisma.questionDraft.findUnique({
     where: { id },
-    include: { published: true },
   });
 
   if (!draft) {
     throw new Error("草案が見つかりません。");
   }
 
-  if (draft.status !== ReviewStatus.APPROVED) {
-    throw new Error("承認済み草案のみ公開できます。");
-  }
-
-  if (draft.published) {
-    await prisma.examQuestion.update({
-      where: { questionDraftId: id },
-      data: {
-        publishStatus: QuestionPublishStatus.ACTIVE,
-      },
-    });
-  } else {
-    await prisma.examQuestion.create({
-      data: {
-        questionDraftId: id,
-        publishStatus: QuestionPublishStatus.ACTIVE,
-      },
-    });
-  }
+  await prisma.questionDraft.update({
+    where: { id },
+    data: {
+      isPublished: true,
+      publishedAt: draft.publishedAt ?? new Date(),
+    },
+  });
 
   revalidatePath("/admin/drafts");
   revalidatePath(`/admin/drafts/${id}`);
@@ -90,18 +39,18 @@ export async function unpublishDraft(formData: FormData) {
     throw new Error("草案IDがありません。");
   }
 
-  const existing = await prisma.examQuestion.findUnique({
-    where: { questionDraftId: id },
+  const draft = await prisma.questionDraft.findUnique({
+    where: { id },
   });
 
-  if (!existing) {
-    return;
+  if (!draft) {
+    throw new Error("草案が見つかりません。");
   }
 
-  await prisma.examQuestion.update({
-    where: { questionDraftId: id },
+  await prisma.questionDraft.update({
+    where: { id },
     data: {
-      publishStatus: QuestionPublishStatus.INACTIVE,
+      isPublished: false,
     },
   });
 
@@ -121,8 +70,12 @@ export async function deleteDraft(formData: FormData) {
   const draft = await prisma.questionDraft.findUnique({
     where: { id },
     include: {
-      published: true,
       learningPoint: true,
+      setItems: true,
+      goods: true,
+      raiseHands: true,
+      citations: true,
+      attempts: true,
     },
   });
 
@@ -130,8 +83,8 @@ export async function deleteDraft(formData: FormData) {
     throw new Error("草案が見つかりません");
   }
 
-  if (draft.published && draft.published.publishStatus === "ACTIVE") {
-    throw new Error("公開中の問題は削除できません。先に公開停止してください。");
+  if (draft.isPublished) {
+    throw new Error("公開中の問題は削除できません。先に非公開にしてください。");
   }
 
   await prisma.questionDraft.delete({
@@ -139,7 +92,9 @@ export async function deleteDraft(formData: FormData) {
   });
 
   revalidatePath("/admin/drafts");
+  revalidatePath(`/admin/drafts/${id}`);
   revalidatePath(redirectTo);
+  revalidatePath("/quiz");
 
   redirect(redirectTo);
 }

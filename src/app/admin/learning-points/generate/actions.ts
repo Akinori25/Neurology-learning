@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { generateLearningPointCandidates } from "@/lib/learning-point-generator";
 import { redirect } from "next/navigation";
-import { Difficulty } from "@prisma/client";
+import { Difficulty, LearningPointOrigin } from "@prisma/client";
 
 function isDifficulty(value: string | null | undefined): value is Difficulty {
   return (
@@ -130,6 +130,8 @@ export async function saveLearningPointCandidates(formData: FormData) {
     }
   }
 
+  const origin: LearningPointOrigin = sourceId ? "SOURCE_LLM" : "LLM";
+
   await prisma.$transaction(
     selectedCandidates.map((candidate) =>
       prisma.learningPoint.create({
@@ -143,7 +145,7 @@ export async function saveLearningPointCandidates(formData: FormData) {
           difficulty: candidate.difficulty,
           questionStyle: candidate.questionStyle,
           tags: candidate.tags.map((tag) => tag.trim()).filter(Boolean),
-          status: "DRAFT",
+          origin,
         },
       })
     )

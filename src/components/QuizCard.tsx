@@ -73,7 +73,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
     startTransition(async () => {
       try {
         const result = await submitAnswer({
-          examQuestionId: question.id,
+          questionDraftId: question.id,
           selectedAnswer: key,
         });
         setFeedback(result);
