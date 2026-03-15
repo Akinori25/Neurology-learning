@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum SourceType {
+  TEXTBOOK
+  GUIDELINE
+  PAPER
+  PAST_EXAM
+  NOTE
+}
+
+enum SourceStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum Difficulty {
+  CORE
+  STANDARD
+  HARD
+  INSANE
+}
+
+enum QuestionStyle {
+  FACT
+  CASE
+  DIFFERENTIAL
+  TREATMENT
+  IMAGE
+}
+
+enum ReviewStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+enum QuestionPublishStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ImageModality {
+  MRI
+  CT
+  EEG
+  EMG
+  NCS
+  PATHOLOGY
+  MUSCLE_PATHOLOGY
+  CLINICAL_PHOTO
+  FUNDUS
+  PET
+  ULTRASOUND
+  OTHER
+}
+
+enum ImageAssetStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Source {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        SourceType
+  author      String?
+  year        Int?
+  fileUrl     String?
+  rawText     String?
+  status      SourceStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  chunks         SourceChunk[]
+  learningPoints LearningPoint[]
+  images         ImageAsset[]
+}
+
+model SourceChunk {
+  id         String   @id @default(cuid())
+  sourceId   String
+  chunkIndex Int
+  chapter    String?
+  pageStart  Int?
+  pageEnd    Int?
+  text       String   @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  citedInDrafts QuestionDraftCitation[]
+
+  @@unique([sourceId, chunkIndex])
+  @@index([sourceId])
+}
+
+model LearningPoint {
+  id              String       @id @default(cuid())
+  sourceId        String?
+  topic           String
+  subtopic        String?
+  title           String
+  learningPoint   String       @db.Text
+  rationale       String?      @db.Text
+  difficulty      Difficulty
+  questionStyle   QuestionStyle
+  tags            String[]
+  sourcePriority  Int          @default(0)
+  status          ReviewStatus @default(DRAFT)
+  reviewerComment String?      @db.Text
+  lastGeneratedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  drafts      QuestionDraft[]
+  imageLinks  LearningPointImage[]
+
+  @@index([topic])
+  @@index([subtopic])
+  @@index([status])
+}
+
+model LearningPointImage {
+  id              String   @id @default(cuid())
+  learningPointId String
+  imageAssetId    String
+  note            String?
+  createdAt       DateTime @default(now())
+
+  learningPoint LearningPoint @relation(fields: [learningPointId], references: [id], onDelete: Cascade)
+  imageAsset    ImageAsset    @relation(fields: [imageAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([learningPointId, imageAssetId])
+  @@index([learningPointId])
+  @@index([imageAssetId])
+}
+
+model ImageAsset {
+  id             String           @id @default(cuid())
+  sourceId       String?
+  title          String
+  description    String?          @db.Text
+  fileUrl        String
+  thumbnailUrl   String?
+  modality       ImageModality
+  topic          String
+  subtopic       String?
+  diagnosis      String?
+  findings       String?          @db.Text
+  notes          String?          @db.Text
+  sourceLabel    String?
+  sourceYear     Int?
+  copyrightNote  String?
+  status         ImageAssetStatus @default(ACTIVE)
+  tags           String[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  learningPoints LearningPointImage[]
+  questionDrafts QuestionDraft[]
+
+  @@index([topic])
+  @@index([subtopic])
+  @@index([modality])
+  @@index([status])
+}
+
+model QuestionDraft {
+  id              String         @id @default(cuid())
+  learningPointId String
+  imageAssetId    String?
+  version         Int            @default(1)
+
+  stem            String         @db.Text
+  choiceA         String         @db.Text
+  choiceB         String         @db.Text
+  choiceC         String         @db.Text
+  choiceD         String         @db.Text
+  correctAnswer   String
+
+  explanation     String         @db.Text
+  explanationA    String?        @db.Text
+  explanationB    String?        @db.Text
+  explanationC    String?        @db.Text
+  explanationD    String?        @db.Text
+
+  llmModel        String?
+  promptVersion   String?
+  generationMeta  Json?
+
+  status          ReviewStatus   @default(DRAFT)
+  reviewerComment String?        @db.Text
+
+  hasImage        Boolean        @default(false)
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  learningPoint LearningPoint @relation(fields: [learningPointId], references: [id], onDelete: Cascade)
+  imageAsset    ImageAsset?    @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
+
+  citations QuestionDraftCitation[]
+  published ExamQuestion?
+
+  @@index([learningPointId])
+  @@index([imageAssetId])
+  @@index([status])
+}
+
+model QuestionDraftCitation {
+  id              String   @id @default(cuid())
+  questionDraftId String
+  sourceChunkId   String
+  note            String?
+  createdAt       DateTime @default(now())
+
+  questionDraft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+  sourceChunk    SourceChunk   @relation(fields: [sourceChunkId], references: [id], onDelete: Cascade)
+
+  @@index([questionDraftId])
+  @@index([sourceChunkId])
+}
+
+model ExamQuestion {
+  id              String                @id @default(cuid())
+  questionDraftId String                @unique
+  publishStatus   QuestionPublishStatus @default(ACTIVE)
+  publishedAt     DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  draft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+
+  attempts UserAttempt[]
+
+  @@index([publishStatus])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  role      String   @default("learner")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attempts UserAttempt[]
+}
+
+model UserAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  examQuestionId String
+  selectedAnswer String
+  isCorrect      Boolean
+  answeredAt     DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examQuestion ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([examQuestionId])
+  @@index([answeredAt])
+}
