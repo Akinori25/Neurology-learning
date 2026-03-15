@@ -9,6 +9,7 @@ type DraftsPageProps = {
     topic?: string;
     difficulty?: string;
     sort?: string;
+    page?: string;
   }>;
 };
 
@@ -18,6 +19,8 @@ const DIFFICULTY_OPTIONS: Difficulty[] = [
   "HARD",
   "INSANE",
 ];
+
+const PAGE_SIZE = 20;
 
 function isDifficulty(value: string | undefined): value is Difficulty {
   return !!value && DIFFICULTY_OPTIONS.includes(value as Difficulty);
@@ -96,6 +99,28 @@ function sortLabel(sort: string) {
   }
 }
 
+function buildPageHref({
+  topic,
+  difficulty,
+  sort,
+  page,
+}: {
+  topic?: string;
+  difficulty?: string;
+  sort?: string;
+  page?: number;
+}) {
+  const params = new URLSearchParams();
+
+  if (topic) params.set("topic", topic);
+  if (difficulty) params.set("difficulty", difficulty);
+  if (sort) params.set("sort", sort);
+  if (page && page > 1) params.set("page", String(page));
+
+  const query = params.toString();
+  return query ? `/admin/drafts?${query}` : "/admin/drafts";
+}
+
 export default async function DraftsPage({ searchParams }: DraftsPageProps) {
   const params = (await searchParams) ?? {};
 
@@ -104,6 +129,7 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
     ? params.difficulty
     : "";
   const sort = params.sort?.trim() || "updated_desc";
+  const currentPage = Math.max(Number(params.page ?? "1") || 1, 1);
 
   const where: Prisma.QuestionDraftWhereInput = {
     ...(selectedTopic || selectedDifficulty
@@ -124,58 +150,111 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
 
   const topics = topicsRaw.map((item) => item.topic);
 
-  const draftsRaw = await prisma.questionDraft.findMany({
-    where,
-    include: {
-      learningPoint: true,
-      imageAsset: true,
-      citations: {
-        select: { id: true },
-      },
-      setItems: {
-        select: { id: true },
-      },
-      _count: {
-        select: {
-          goods: true,
-          raiseHands: true,
-        },
+  const baseSelect = {
+    id: true,
+    stem: true,
+    version: true,
+    hasImage: true,
+    isPublished: true,
+    publishedAt: true,
+    updatedAt: true,
+    learningPoint: {
+      select: {
+        title: true,
+        topic: true,
+        subtopic: true,
+        questionStyle: true,
+        difficulty: true,
+        origin: true,
       },
     },
-    orderBy: {
-      updatedAt: "desc",
+    imageAsset: {
+      select: {
+        title: true,
+      },
     },
-  });
+    _count: {
+      select: {
+        citations: true,
+        goods: true,
+        raiseHands: true,
+        setItems: true,
+      },
+    },
+  } satisfies Prisma.QuestionDraftSelect;
 
-  const drafts = [...draftsRaw].sort((a, b) => {
-    switch (sort) {
-      case "updated_asc":
-        return a.updatedAt.getTime() - b.updatedAt.getTime();
-      case "good_desc":
-        return (
-          b._count.goods - a._count.goods ||
-          b.updatedAt.getTime() - a.updatedAt.getTime()
-        );
-      case "good_asc":
-        return (
-          a._count.goods - b._count.goods ||
-          b.updatedAt.getTime() - a.updatedAt.getTime()
-        );
-      case "raise_desc":
-        return (
-          b._count.raiseHands - a._count.raiseHands ||
-          b.updatedAt.getTime() - a.updatedAt.getTime()
-        );
-      case "raise_asc":
-        return (
-          a._count.raiseHands - b._count.raiseHands ||
-          b.updatedAt.getTime() - a.updatedAt.getTime()
-        );
-      case "updated_desc":
-      default:
-        return b.updatedAt.getTime() - a.updatedAt.getTime();
-    }
-  });
+  let drafts: Prisma.QuestionDraftGetPayload<{ select: typeof baseSelect }>[] =
+    [];
+  let totalCount = 0;
+
+  const isCountSort =
+    sort === "good_desc" ||
+    sort === "good_asc" ||
+    sort === "raise_desc" ||
+    sort === "raise_asc";
+
+  if (isCountSort) {
+    const allDrafts = await prisma.questionDraft.findMany({
+      where,
+      select: baseSelect,
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    const sorted = [...allDrafts].sort((a, b) => {
+      switch (sort) {
+        case "good_desc":
+          return (
+            b._count.goods - a._count.goods ||
+            b.updatedAt.getTime() - a.updatedAt.getTime()
+          );
+        case "good_asc":
+          return (
+            a._count.goods - b._count.goods ||
+            b.updatedAt.getTime() - a.updatedAt.getTime()
+          );
+        case "raise_desc":
+          return (
+            b._count.raiseHands - a._count.raiseHands ||
+            b.updatedAt.getTime() - a.updatedAt.getTime()
+          );
+        case "raise_asc":
+          return (
+            a._count.raiseHands - b._count.raiseHands ||
+            b.updatedAt.getTime() - a.updatedAt.getTime()
+          );
+        default:
+          return b.updatedAt.getTime() - a.updatedAt.getTime();
+      }
+    });
+
+    totalCount = sorted.length;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    drafts = sorted.slice(start, start + PAGE_SIZE);
+  } else {
+    const [countResult, draftsResult] = await Promise.all([
+      prisma.questionDraft.count({ where }),
+      prisma.questionDraft.findMany({
+        where,
+        select: baseSelect,
+        orderBy: {
+          updatedAt: sort === "updated_asc" ? "asc" : "desc",
+        },
+        skip: (currentPage - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+    ]);
+
+    totalCount = countResult;
+    drafts = draftsResult;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const pageStart = totalCount === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(safePage * PAGE_SIZE, totalCount);
 
   return (
     <main className="mx-auto max-w-7xl p-4 sm:p-6">
@@ -277,6 +356,9 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
           <span className="rounded-full border bg-gray-50 px-2 py-1">
             並び順: {sortLabel(sort)}
           </span>
+          <span className="rounded-full border bg-gray-50 px-2 py-1">
+            {pageStart}-{pageEnd} / {totalCount}件
+          </span>
         </div>
       </section>
 
@@ -286,7 +368,6 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
         </section>
       ) : (
         <>
-          {/* Mobile cards */}
           <div className="space-y-4 lg:hidden">
             {drafts.map((draft) => (
               <section
@@ -358,13 +439,13 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                     <div>
                       <p className="text-gray-500">根拠</p>
                       <p className="mt-1 font-medium text-gray-900">
-                        {draft.citations.length}件
+                        {draft._count.citations}件
                       </p>
                     </div>
                     <div>
                       <p className="text-gray-500">問題集</p>
                       <p className="mt-1 font-medium text-gray-900">
-                        {draft.setItems.length}件
+                        {draft._count.setItems}件
                       </p>
                     </div>
                     <div>
@@ -400,7 +481,6 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
             ))}
           </div>
 
-          {/* Desktop table */}
           <section className="hidden overflow-hidden rounded-2xl border bg-white shadow-sm lg:block">
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-sm">
@@ -456,7 +536,7 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                       </td>
 
                       <td className="px-4 py-4">
-                        <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700 whitespace-nowrap">
+                        <span className="inline-flex whitespace-nowrap rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700">
                           {formatLearningPointOrigin(draft.learningPoint.origin)}
                         </span>
                       </td>
@@ -464,7 +544,7 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                       <td className="px-4 py-4">
                         {draft.hasImage && draft.imageAsset ? (
                           <div className="space-y-1">
-                            <span className="inline-flex rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700 whitespace-nowrap">
+                            <span className="inline-flex whitespace-nowrap rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
                               あり
                             </span>
                             <p className="max-w-[180px] text-xs text-gray-500">
@@ -472,27 +552,27 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                             </p>
                           </div>
                         ) : (
-                          <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500 whitespace-nowrap">
+                          <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
                             なし
                           </span>
                         )}
                       </td>
 
                       <td className="px-4 py-4">
-                        <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700 whitespace-nowrap">
-                          {draft.citations.length}件
+                        <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                          {draft._count.citations}件
                         </span>
                       </td>
 
                       <td className="px-4 py-4">
                         <div className="space-y-1">
                           <div>
-                            <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700 whitespace-nowrap">
+                            <span className="inline-flex whitespace-nowrap rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
                               Good {draft._count.goods}
                             </span>
                           </div>
                           <div>
-                            <span className="inline-flex rounded-full border bg-yellow-50 px-2 py-1 text-xs text-yellow-700 whitespace-nowrap">
+                            <span className="inline-flex whitespace-nowrap rounded-full border bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
                               挙手 {draft._count.raiseHands}
                             </span>
                           </div>
@@ -500,15 +580,15 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                       </td>
 
                       <td className="px-4 py-4">
-                        <span className="inline-flex rounded-full border bg-indigo-50 px-2 py-1 text-xs text-indigo-700 whitespace-nowrap">
-                          {draft.setItems.length}件
+                        <span className="inline-flex whitespace-nowrap rounded-full border bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
+                          {draft._count.setItems}件
                         </span>
                       </td>
 
                       <td className="px-4 py-4">
                         {draft.isPublished ? (
                           <div className="space-y-1">
-                            <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700 whitespace-nowrap">
+                            <span className="inline-flex whitespace-nowrap rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
                               公開中
                             </span>
                             <p className="text-xs text-gray-500">
@@ -518,7 +598,7 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                             </p>
                           </div>
                         ) : (
-                          <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500 whitespace-nowrap">
+                          <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
                             下書き
                           </span>
                         )}
@@ -542,6 +622,50 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
               </table>
             </div>
           </section>
+
+          <nav className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-500">
+              {pageStart}-{pageEnd} / {totalCount}件
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={buildPageHref({
+                  topic: selectedTopic,
+                  difficulty: selectedDifficulty,
+                  sort,
+                  page: Math.max(1, safePage - 1),
+                })}
+                className={`inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm ${
+                  safePage <= 1
+                    ? "pointer-events-none opacity-40"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                前へ
+              </Link>
+
+              <span className="inline-flex h-10 items-center justify-center rounded-lg border bg-gray-50 px-4 text-sm text-gray-700">
+                {safePage} / {totalPages}
+              </span>
+
+              <Link
+                href={buildPageHref({
+                  topic: selectedTopic,
+                  difficulty: selectedDifficulty,
+                  sort,
+                  page: Math.min(totalPages, safePage + 1),
+                })}
+                className={`inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm ${
+                  safePage >= totalPages
+                    ? "pointer-events-none opacity-40"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                次へ
+              </Link>
+            </div>
+          </nav>
         </>
       )}
     </main>

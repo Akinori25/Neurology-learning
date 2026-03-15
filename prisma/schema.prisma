@@ -144,6 +144,9 @@ model LearningPoint {
   @@index([subtopic])
   @@index([origin])
   @@index([createdById])
+  @@index([difficulty])
+  @@index([updatedAt])
+  @@index([topic, difficulty])
 }
 
 model LearningPointImage {
@@ -162,25 +165,25 @@ model LearningPointImage {
 }
 
 model ImageAsset {
-  id             String           @id @default(cuid())
-  sourceId       String?
-  title          String
-  description    String?          @db.Text
-  fileUrl        String
-  thumbnailUrl   String?
-  modality       ImageModality
-  topic          String
-  subtopic       String?
-  diagnosis      String?
-  findings       String?          @db.Text
-  notes          String?          @db.Text
-  sourceLabel    String?
-  sourceYear     Int?
-  copyrightNote  String?
-  status         ImageAssetStatus @default(ACTIVE)
-  tags           String[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  sourceId      String?
+  title         String
+  description   String?          @db.Text
+  fileUrl       String
+  thumbnailUrl  String?
+  modality      ImageModality
+  topic         String
+  subtopic      String?
+  diagnosis     String?
+  findings      String?          @db.Text
+  notes         String?          @db.Text
+  sourceLabel   String?
+  sourceYear    Int?
+  copyrightNote String?
+  status        ImageAssetStatus @default(ACTIVE)
+  tags          String[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
 
@@ -194,11 +197,11 @@ model ImageAsset {
 }
 
 model QuestionDraft {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   learningPointId String
   imageAssetId    String?
   createdById     String?
-  version         Int      @default(1)
+  version         Int     @default(1)
 
   stem          String @db.Text
   choiceA       String @db.Text
@@ -217,16 +220,16 @@ model QuestionDraft {
   promptVersion  String?
   generationMeta Json?
 
-  hasImage    Boolean  @default(false)
-  isPublished Boolean  @default(false)
+  hasImage    Boolean   @default(false)
+  isPublished Boolean   @default(false)
   publishedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   learningPoint LearningPoint @relation(fields: [learningPointId], references: [id], onDelete: Cascade)
-  imageAsset    ImageAsset?    @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
-  createdBy     User?          @relation("QuestionDraftCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  imageAsset    ImageAsset?   @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
+  createdBy     User?         @relation("QuestionDraftCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   citations  QuestionDraftCitation[]
   attempts   UserAttempt[]
@@ -239,6 +242,9 @@ model QuestionDraft {
   @@index([createdById])
   @@index([isPublished])
   @@index([publishedAt])
+  @@index([updatedAt])
+  @@index([isPublished, publishedAt])
+  @@index([isPublished, learningPointId])
 }
 
 model QuestionDraftCitation {
@@ -249,7 +255,7 @@ model QuestionDraftCitation {
   createdAt       DateTime @default(now())
 
   questionDraft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
-  sourceChunk    SourceChunk   @relation(fields: [sourceChunkId], references: [id], onDelete: Cascade)
+  sourceChunk   SourceChunk   @relation(fields: [sourceChunkId], references: [id], onDelete: Cascade)
 
   @@index([questionDraftId])
   @@index([sourceChunkId])
@@ -294,7 +300,7 @@ model QuestionSet {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  createdBy User? @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy User?             @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
   items     QuestionSetItem[]
 
   @@index([createdById])

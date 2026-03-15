@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import QuizRunner from "@/components/QuizRunner";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 type QuizPageProps = {
   searchParams?: Promise<{
     topic?: string;
@@ -42,11 +44,10 @@ async function getOrCreateGuestUser() {
 
   const existing = await prisma.user.findUnique({
     where: { email: guestEmail },
+    select: { id: true },
   });
 
-  if (existing) {
-    return existing;
-  }
+  if (existing) return existing;
 
   return prisma.user.create({
     data: {
@@ -54,8 +55,48 @@ async function getOrCreateGuestUser() {
       email: guestEmail,
       role: "learner",
     },
+    select: { id: true },
   });
 }
+
+const questionSelect = (learnerId: string) =>
+  ({
+    id: true,
+    stem: true,
+    choiceA: true,
+    choiceB: true,
+    choiceC: true,
+    choiceD: true,
+    correctAnswer: true,
+    explanation: true,
+    imageAsset: {
+      select: {
+        fileUrl: true,
+        title: true,
+      },
+    },
+    learningPoint: {
+      select: {
+        topic: true,
+        subtopic: true,
+        difficulty: true,
+      },
+    },
+    goods: {
+      where: { userId: learnerId },
+      select: { id: true },
+      take: 1,
+    },
+    raiseHands: {
+      where: { userId: learnerId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        comment: true,
+        createdAt: true,
+      },
+    },
+  }) satisfies Prisma.QuestionDraftSelect;
 
 export default async function QuizPage({ searchParams }: QuizPageProps) {
   const params = (await searchParams) ?? {};
@@ -87,6 +128,8 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
 
   const topics = topicsRaw.map((t) => t.topic);
 
+  const select = questionSelect(learner.id);
+
   const questions =
     mode === "random"
       ? await prisma.$queryRaw<Array<{ id: string }>>`
@@ -108,23 +151,7 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
 
           const fetched = await prisma.questionDraft.findMany({
             where: { id: { in: ids } },
-            include: {
-              imageAsset: true,
-              learningPoint: true,
-              goods: {
-                where: { userId: learner.id },
-                select: { id: true },
-              },
-              raiseHands: {
-                where: { userId: learner.id },
-                orderBy: { createdAt: "desc" },
-                select: {
-                  id: true,
-                  comment: true,
-                  createdAt: true,
-                },
-              },
-            },
+            select,
           });
 
           const orderMap = new Map(ids.map((id, index) => [id, index]));
@@ -134,23 +161,7 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
         })
       : await prisma.questionDraft.findMany({
           where,
-          include: {
-            imageAsset: true,
-            learningPoint: true,
-            goods: {
-              where: { userId: learner.id },
-              select: { id: true },
-            },
-            raiseHands: {
-              where: { userId: learner.id },
-              orderBy: { createdAt: "desc" },
-              select: {
-                id: true,
-                comment: true,
-                createdAt: true,
-              },
-            },
-          },
+          select,
           orderBy: {
             publishedAt: "desc",
           },
