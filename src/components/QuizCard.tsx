@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import {
-  saveRaiseHand,
-  submitAnswer,
-  toggleDraftGood,
-} from "@/app/quiz/actions";
+import { saveRaiseHand, toggleDraftGood } from "@/app/quiz/actions";
 
 type QuizCardProps = {
   question: {
@@ -68,13 +64,13 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
     { id: string; comment: string; createdAt?: string }[]
   >(question.raiseHands ?? []);
 
-  const [isAnswerPending, startAnswerTransition] = useTransition();
   const [isMetaPending, startMetaTransition] = useTransition();
 
   useEffect(() => {
     setSelected(null);
     setRevealed(false);
     setFeedback(null);
+
     setIsGood(question.isGood ?? false);
     setShowRaiseHandBox(false);
     setCommentInput("");
@@ -92,26 +88,21 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
   );
 
   const handleSelect = (key: string) => {
-    if (revealed || isAnswerPending) return;
+    if (revealed) return;
     setSelected(key);
   };
 
   const handleRevealAnswer = () => {
-    if (!selected || revealed || isAnswerPending) return;
+    if (!selected || revealed) return;
 
-    startAnswerTransition(async () => {
-      try {
-        const result = await submitAnswer({
-          questionDraftId: question.id,
-          selectedAnswer: selected,
-        });
-        setFeedback(result);
-        setRevealed(true);
-      } catch (error) {
-        console.error(error);
-        alert("回答の保存に失敗しました。");
-      }
+    const isCorrect = selected === question.correctAnswer;
+
+    setFeedback({
+      isCorrect,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation,
     });
+    setRevealed(true);
   };
 
   const handleToggleGood = () => {
@@ -160,6 +151,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
           },
           ...prev,
         ]);
+
         setShowRaiseHandBox(false);
         setCommentInput("");
       } catch (error) {
@@ -279,7 +271,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
               key={choice.key}
               type="button"
               onClick={() => handleSelect(choice.key)}
-              disabled={isAnswerPending || revealed}
+              disabled={revealed}
               className={getButtonClass(choice.key)}
             >
               <div className="flex items-start gap-3">
@@ -299,16 +291,12 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
             <button
               type="button"
               onClick={handleRevealAnswer}
-              disabled={!selected || isAnswerPending}
+              disabled={!selected}
               className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              回答を表示
+              答え合わせ
             </button>
           </div>
-        )}
-
-        {isAnswerPending && (
-          <p className="mt-4 text-sm text-slate-500">回答を保存しています...</p>
         )}
 
         {showRaiseHandBox && (
@@ -377,7 +365,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
 
             <div className="mt-3">
               <p className="mb-1 text-sm font-semibold text-slate-900">解説</p>
-              <p className="text-sm leading-7 text-slate-700 sm:text-[15px]">
+              <p className="text-sm leading-7 text-slate-700 sm:text-[15px] whitespace-pre-line">
                 {feedback.explanation}
               </p>
             </div>
@@ -393,7 +381,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
                       key={item.id}
                       className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2"
                     >
-                      <p className="text-sm leading-6 text-slate-700">
+                      <p className="text-sm leading-6 text-slate-700 whitespace-pre-line">
                         {item.comment}
                       </p>
                     </div>

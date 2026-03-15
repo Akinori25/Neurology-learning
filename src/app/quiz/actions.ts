@@ -2,11 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 
-type SubmitAnswerInput = {
-  questionDraftId: string;
-  selectedAnswer: string;
-};
-
 type QuestionOnlyInput = {
   questionDraftId: string;
 };
@@ -34,42 +29,6 @@ async function getOrCreateGuestUser() {
       role: "learner",
     },
   });
-}
-
-export async function submitAnswer({
-  questionDraftId,
-  selectedAnswer,
-}: SubmitAnswerInput) {
-  const draft = await prisma.questionDraft.findUnique({
-    where: { id: questionDraftId },
-  });
-
-  if (!draft || !draft.isPublished) {
-    throw new Error("問題が見つかりません。");
-  }
-
-  const allowed = ["A", "B", "C", "D"];
-  if (!allowed.includes(selectedAnswer)) {
-    throw new Error("回答が不正です。");
-  }
-
-  const isCorrect = draft.correctAnswer === selectedAnswer;
-  const learner = await getOrCreateGuestUser();
-
-  await prisma.userAttempt.create({
-    data: {
-      userId: learner.id,
-      questionDraftId,
-      selectedAnswer,
-      isCorrect,
-    },
-  });
-
-  return {
-    isCorrect,
-    correctAnswer: draft.correctAnswer,
-    explanation: draft.explanation,
-  };
 }
 
 export async function toggleDraftGood({ questionDraftId }: QuestionOnlyInput) {
@@ -102,6 +61,7 @@ export async function toggleDraftGood({ questionDraftId }: QuestionOnlyInput) {
         },
       },
     });
+
     return { isGood: false };
   }
 
