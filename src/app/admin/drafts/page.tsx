@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Prisma, Difficulty } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 type DraftsPageProps = {
   searchParams?: Promise<{
     topic?: string;
@@ -175,19 +177,9 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
     }
   });
 
-  const stats = {
-    totalDrafts: drafts.length,
-    publishedDrafts: drafts.filter((draft) => draft.isPublished).length,
-    totalGoods: drafts.reduce((sum, draft) => sum + draft._count.goods, 0),
-    totalRaiseHands: drafts.reduce(
-      (sum, draft) => sum + draft._count.raiseHands,
-      0
-    ),
-  };
-
   return (
-    <main className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex items-end justify-between gap-4">
+    <main className="mx-auto max-w-7xl p-4 sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">問題草案</h1>
           <p className="mt-2 text-sm text-gray-500">
@@ -197,41 +189,11 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
 
         <Link
           href="/admin"
-          className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50"
+          className="inline-flex h-11 items-center justify-center rounded-xl border px-4 text-sm hover:bg-gray-50"
         >
           管理ダッシュボードへ戻る
         </Link>
       </div>
-
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">草案数</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">
-            {stats.totalDrafts}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">公開中</p>
-          <p className="mt-2 text-2xl font-bold text-green-700">
-            {stats.publishedDrafts}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Good総数</p>
-          <p className="mt-2 text-2xl font-bold text-green-700">
-            {stats.totalGoods}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">挙手総数</p>
-          <p className="mt-2 text-2xl font-bold text-yellow-700">
-            {stats.totalRaiseHands}
-          </p>
-        </div>
-      </section>
 
       <section className="mb-6 rounded-2xl border bg-white p-4 shadow-sm">
         <form method="get" className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -323,147 +285,264 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
           <p>条件に一致する問題草案がありません。</p>
         </section>
       ) : (
-        <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-left">
-                  <th className="px-4 py-3 font-semibold">問題文</th>
-                  <th className="px-4 py-3 font-semibold">論点</th>
-                  <th className="px-4 py-3 font-semibold">形式</th>
-                  <th className="px-4 py-3 font-semibold">難易度</th>
-                  <th className="px-4 py-3 font-semibold">作成方法</th>
-                  <th className="px-4 py-3 font-semibold">画像</th>
-                  <th className="px-4 py-3 font-semibold">根拠</th>
-                  <th className="px-4 py-3 font-semibold">反応</th>
-                  <th className="px-4 py-3 font-semibold">問題集</th>
-                  <th className="px-4 py-3 font-semibold">公開</th>
-                  <th className="px-4 py-3 font-semibold">更新日時</th>
-                  <th className="px-4 py-3 font-semibold">操作</th>
-                </tr>
-              </thead>
+        <>
+          {/* Mobile cards */}
+          <div className="space-y-4 lg:hidden">
+            {drafts.map((draft) => (
+              <section
+                key={draft.id}
+                className="rounded-2xl border bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-3 font-medium leading-6 text-gray-900">
+                      {draft.stem}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">v{draft.version}</p>
+                  </div>
 
-              <tbody>
-                {drafts.map((draft) => (
-                  <tr key={draft.id} className="border-t align-top">
-                    <td className="px-4 py-4">
-                      <div className="max-w-md">
-                        <p className="line-clamp-2 font-medium leading-6">
-                          {draft.stem}
-                        </p>
-                        <p className="mt-2 text-xs text-gray-500">
-                          v{draft.version}
-                        </p>
-                      </div>
-                    </td>
+                  <Link
+                    href={`/admin/drafts/${draft.id}`}
+                    className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-xs font-medium hover:bg-gray-50"
+                  >
+                    詳細
+                  </Link>
+                </div>
 
-                    <td className="px-4 py-4">
-                      <div className="space-y-1">
-                        <p className="font-medium">{draft.learningPoint.title}</p>
-                        <p className="text-xs text-gray-500">
-                          {draft.learningPoint.topic}
-                          {draft.learningPoint.subtopic
-                            ? ` / ${draft.learningPoint.subtopic}`
-                            : ""}
-                        </p>
-                      </div>
-                    </td>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {draft.learningPoint.title}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {draft.learningPoint.topic}
+                      {draft.learningPoint.subtopic
+                        ? ` / ${draft.learningPoint.subtopic}`
+                        : ""}
+                    </p>
+                  </div>
 
-                    <td className="px-4 py-4">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
                       {formatQuestionStyle(draft.learningPoint.questionStyle)}
-                    </td>
-
-                    <td className="px-4 py-4">
+                    </span>
+                    <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
                       {formatDifficulty(draft.learningPoint.difficulty)}
-                    </td>
+                    </span>
+                    <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700">
+                      {formatLearningPointOrigin(draft.learningPoint.origin)}
+                    </span>
 
-                    <td className="px-4 py-4">
-                      <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700">
-                        {formatLearningPointOrigin(draft.learningPoint.origin)}
+                    {draft.hasImage && draft.imageAsset ? (
+                      <span className="inline-flex rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                        画像あり
                       </span>
-                    </td>
+                    ) : (
+                      <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
+                        画像なし
+                      </span>
+                    )}
 
-                    <td className="px-4 py-4">
-                      {draft.hasImage && draft.imageAsset ? (
-                        <div className="space-y-1">
-                          <span className="inline-flex rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                            あり
-                          </span>
-                          <p className="max-w-[180px] text-xs text-gray-500">
-                            {draft.imageAsset.title}
+                    {draft.isPublished ? (
+                      <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
+                        公開中
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
+                        下書き
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-3 text-xs">
+                    <div>
+                      <p className="text-gray-500">根拠</p>
+                      <p className="mt-1 font-medium text-gray-900">
+                        {draft.citations.length}件
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">問題集</p>
+                      <p className="mt-1 font-medium text-gray-900">
+                        {draft.setItems.length}件
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Good</p>
+                      <p className="mt-1 font-medium text-green-700">
+                        {draft._count.goods}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">挙手</p>
+                      <p className="mt-1 font-medium text-yellow-700">
+                        {draft._count.raiseHands}
+                      </p>
+                    </div>
+                  </div>
+
+                  {draft.hasImage && draft.imageAsset && (
+                    <p className="text-xs text-gray-500">
+                      画像: {draft.imageAsset.title}
+                    </p>
+                  )}
+
+                  <div className="text-xs text-gray-500">
+                    <p>更新: {formatDate(draft.updatedAt)}</p>
+                    {draft.isPublished && draft.publishedAt && (
+                      <p className="mt-1">
+                        公開: {formatDate(draft.publishedAt)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <section className="hidden overflow-hidden rounded-2xl border bg-white shadow-sm lg:block">
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="text-left">
+                    <th className="px-4 py-3 font-semibold">問題文</th>
+                    <th className="px-4 py-3 font-semibold">論点</th>
+                    <th className="px-4 py-3 font-semibold">形式</th>
+                    <th className="px-4 py-3 font-semibold">難易度</th>
+                    <th className="px-4 py-3 font-semibold">作成方法</th>
+                    <th className="px-4 py-3 font-semibold">画像</th>
+                    <th className="px-4 py-3 font-semibold">根拠</th>
+                    <th className="px-4 py-3 font-semibold">反応</th>
+                    <th className="px-4 py-3 font-semibold">問題集</th>
+                    <th className="px-4 py-3 font-semibold">公開</th>
+                    <th className="px-4 py-3 font-semibold">更新日時</th>
+                    <th className="px-4 py-3 font-semibold">操作</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {drafts.map((draft) => (
+                    <tr key={draft.id} className="border-t align-top">
+                      <td className="px-4 py-4">
+                        <div className="max-w-md">
+                          <p className="line-clamp-2 font-medium leading-6">
+                            {draft.stem}
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            v{draft.version}
                           </p>
                         </div>
-                      ) : (
-                        <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
-                          なし
-                        </span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="px-4 py-4">
-                      <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                        {draft.citations.length}件
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div className="space-y-1">
-                        <div>
-                          <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
-                            Good {draft._count.goods}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="inline-flex rounded-full border bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
-                            挙手 {draft._count.raiseHands}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span className="inline-flex rounded-full border bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
-                        {draft.setItems.length}件
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {draft.isPublished ? (
+                      <td className="px-4 py-4">
                         <div className="space-y-1">
-                          <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700">
-                            公開中
-                          </span>
+                          <p className="font-medium">{draft.learningPoint.title}</p>
                           <p className="text-xs text-gray-500">
-                            {draft.publishedAt
-                              ? formatDate(draft.publishedAt)
+                            {draft.learningPoint.topic}
+                            {draft.learningPoint.subtopic
+                              ? ` / ${draft.learningPoint.subtopic}`
                               : ""}
                           </p>
                         </div>
-                      ) : (
-                        <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
-                          下書き
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {formatQuestionStyle(draft.learningPoint.questionStyle)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {formatDifficulty(draft.learningPoint.difficulty)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700 whitespace-nowrap">
+                          {formatLearningPointOrigin(draft.learningPoint.origin)}
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="whitespace-nowrap px-4 py-4 text-gray-600">
-                      {formatDate(draft.updatedAt)}
-                    </td>
+                      <td className="px-4 py-4">
+                        {draft.hasImage && draft.imageAsset ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700 whitespace-nowrap">
+                              あり
+                            </span>
+                            <p className="max-w-[180px] text-xs text-gray-500">
+                              {draft.imageAsset.title}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500 whitespace-nowrap">
+                            なし
+                          </span>
+                        )}
+                      </td>
 
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/admin/drafts/${draft.id}`}
-                        className="rounded-lg border px-3 py-2 text-xs hover:bg-gray-50"
-                      >
-                        詳細を見る
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700 whitespace-nowrap">
+                          {draft.citations.length}件
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="space-y-1">
+                          <div>
+                            <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700 whitespace-nowrap">
+                              Good {draft._count.goods}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="inline-flex rounded-full border bg-yellow-50 px-2 py-1 text-xs text-yellow-700 whitespace-nowrap">
+                              挙手 {draft._count.raiseHands}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="inline-flex rounded-full border bg-indigo-50 px-2 py-1 text-xs text-indigo-700 whitespace-nowrap">
+                          {draft.setItems.length}件
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {draft.isPublished ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex rounded-full border bg-green-50 px-2 py-1 text-xs text-green-700 whitespace-nowrap">
+                              公開中
+                            </span>
+                            <p className="text-xs text-gray-500">
+                              {draft.publishedAt
+                                ? formatDate(draft.publishedAt)
+                                : ""}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500 whitespace-nowrap">
+                            下書き
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+                        {formatDate(draft.updatedAt)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <Link
+                          href={`/admin/drafts/${draft.id}`}
+                          className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-xs hover:bg-gray-50"
+                        >
+                          詳細
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       )}
     </main>
   );
