@@ -99,11 +99,17 @@ model SourceChunk {
   @@index([sourceId])
 }
 
+enum UserRole {
+  ADMIN
+  EDITOR
+  LEARNER
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
   email     String?  @unique
-  role      String   @default("learner")
+  role      UserRole @default(LEARNER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

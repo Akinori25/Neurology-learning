@@ -26,7 +26,7 @@ async function getOrCreateGuestUser() {
     data: {
       name: "Guest User",
       email: guestEmail,
-      role: "learner",
+      role: "LEARNER",
     },
   });
 }
