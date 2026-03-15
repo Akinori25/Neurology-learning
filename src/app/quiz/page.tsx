@@ -37,6 +37,26 @@ function difficultyLabel(difficulty: Difficulty) {
   }
 }
 
+async function getOrCreateGuestUser() {
+  const guestEmail = "guest@example.com";
+
+  const existing = await prisma.user.findUnique({
+    where: { email: guestEmail },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return prisma.user.create({
+    data: {
+      name: "Guest User",
+      email: guestEmail,
+      role: "learner",
+    },
+  });
+}
+
 export default async function QuizPage({ searchParams }: QuizPageProps) {
   const params = (await searchParams) ?? {};
   const selectedTopic = params.topic?.trim() || "";
@@ -44,6 +64,8 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
     ? params.difficulty
     : "";
   const mode = params.mode === "random" ? "random" : "latest";
+
+  const learner = await getOrCreateGuestUser();
 
   const where: Prisma.QuestionDraftWhereInput = {
     isPublished: true,
@@ -89,6 +111,19 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
             include: {
               imageAsset: true,
               learningPoint: true,
+              goods: {
+                where: { userId: learner.id },
+                select: { id: true },
+              },
+              raiseHands: {
+                where: { userId: learner.id },
+                orderBy: { createdAt: "desc" },
+                select: {
+                  id: true,
+                  comment: true,
+                  createdAt: true,
+                },
+              },
             },
           });
 
@@ -102,6 +137,19 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
           include: {
             imageAsset: true,
             learningPoint: true,
+            goods: {
+              where: { userId: learner.id },
+              select: { id: true },
+            },
+            raiseHands: {
+              where: { userId: learner.id },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                comment: true,
+                createdAt: true,
+              },
+            },
           },
           orderBy: {
             publishedAt: "desc",
@@ -131,19 +179,36 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
           difficulty: q.learningPoint.difficulty,
         }
       : null,
+    isGood: q.goods.length > 0,
+    raiseHands: q.raiseHands.map((item) => ({
+      id: item.id,
+      comment: item.comment,
+      createdAt: item.createdAt.toISOString(),
+    })),
   }));
 
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6">
-          <p className="mb-2 text-sm font-medium text-sky-700">Neurology Quiz</p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-            演習
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 sm:text-base">
-            topic・difficultyで絞り込みながら、専門医試験向けの演習を行います。
-          </p>
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="mb-2 text-sm font-medium text-sky-700">Neurology Quiz</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              演習
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">
+              topic・difficultyで絞り込みながら、専門医試験向けの演習を行います。
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            <Link
+              href="/"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Homeへ戻る
+            </Link>
+          </div>
         </header>
 
         <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">

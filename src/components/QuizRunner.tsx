@@ -21,6 +21,12 @@ type QuizQuestion = {
     subtopic: string | null;
     difficulty?: string;
   } | null;
+  isGood?: boolean;
+  raiseHands?: {
+    id: string;
+    comment: string;
+    createdAt?: string;
+  }[];
 };
 
 type QuizRunnerProps = {

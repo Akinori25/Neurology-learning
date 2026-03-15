@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { submitAnswer } from "@/app/quiz/actions";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  saveRaiseHand,
+  submitAnswer,
+  toggleDraftGood,
+} from "@/app/quiz/actions";
 
 type QuizCardProps = {
   question: {
@@ -22,6 +26,12 @@ type QuizCardProps = {
       subtopic: string | null;
       difficulty?: string;
     } | null;
+    isGood?: boolean;
+    raiseHands?: {
+      id: string;
+      comment: string;
+      createdAt?: string;
+    }[];
   };
   index: number;
   total: number;
@@ -50,37 +60,111 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
     correctAnswer: string;
     explanation: string;
   } | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  const [isGood, setIsGood] = useState<boolean>(question.isGood ?? false);
+  const [showRaiseHandBox, setShowRaiseHandBox] = useState(false);
+  const [commentInput, setCommentInput] = useState("");
+  const [savedComments, setSavedComments] = useState<
+    { id: string; comment: string; createdAt?: string }[]
+  >(question.raiseHands ?? []);
+
+  const [isAnswerPending, startAnswerTransition] = useTransition();
+  const [isMetaPending, startMetaTransition] = useTransition();
 
   useEffect(() => {
     setSelected(null);
     setRevealed(false);
     setFeedback(null);
-  }, [question.id]);
+    setIsGood(question.isGood ?? false);
+    setShowRaiseHandBox(false);
+    setCommentInput("");
+    setSavedComments(question.raiseHands ?? []);
+  }, [question.id, question.isGood, question.raiseHands]);
 
-  const choices = [
-    { key: "A", text: question.choiceA },
-    { key: "B", text: question.choiceB },
-    { key: "C", text: question.choiceC },
-    { key: "D", text: question.choiceD },
-  ];
+  const choices = useMemo(
+    () => [
+      { key: "A", text: question.choiceA },
+      { key: "B", text: question.choiceB },
+      { key: "C", text: question.choiceC },
+      { key: "D", text: question.choiceD },
+    ],
+    [question.choiceA, question.choiceB, question.choiceC, question.choiceD]
+  );
 
   const handleSelect = (key: string) => {
-    if (revealed || isPending) return;
-
+    if (revealed || isAnswerPending) return;
     setSelected(key);
+  };
 
-    startTransition(async () => {
+  const handleRevealAnswer = () => {
+    if (!selected || revealed || isAnswerPending) return;
+
+    startAnswerTransition(async () => {
       try {
         const result = await submitAnswer({
           questionDraftId: question.id,
-          selectedAnswer: key,
+          selectedAnswer: selected,
         });
         setFeedback(result);
         setRevealed(true);
       } catch (error) {
         console.error(error);
         alert("回答の保存に失敗しました。");
+      }
+    });
+  };
+
+  const handleToggleGood = () => {
+    if (isMetaPending) return;
+
+    const optimistic = !isGood;
+    setIsGood(optimistic);
+
+    startMetaTransition(async () => {
+      try {
+        const result = await toggleDraftGood({
+          questionDraftId: question.id,
+        });
+        setIsGood(result.isGood);
+      } catch (error) {
+        console.error(error);
+        setIsGood(!optimistic);
+        alert("good の保存に失敗しました。");
+      }
+    });
+  };
+
+  const handleRaiseHandConfirm = () => {
+    if (isMetaPending) return;
+
+    const trimmed = commentInput.trim();
+
+    if (!trimmed) {
+      setShowRaiseHandBox(false);
+      setCommentInput("");
+      return;
+    }
+
+    startMetaTransition(async () => {
+      try {
+        const result = await saveRaiseHand({
+          questionDraftId: question.id,
+          comment: trimmed,
+        });
+
+        setSavedComments((prev) => [
+          {
+            id: result.id,
+            comment: result.comment,
+            createdAt: result.createdAt,
+          },
+          ...prev,
+        ]);
+        setShowRaiseHandBox(false);
+        setCommentInput("");
+      } catch (error) {
+        console.error(error);
+        alert("コメントの保存に失敗しました。");
       }
     });
   };
@@ -112,32 +196,65 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-            問題 {index + 1} / {total}
-          </span>
-
-          {question.learningPoint?.topic && (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
-              {question.learningPoint.topic}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+              問題 {index + 1} / {total}
             </span>
-          )}
 
-          {question.learningPoint?.subtopic && (
-            <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200">
-              {question.learningPoint.subtopic}
-            </span>
-          )}
+            {question.learningPoint?.topic && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                {question.learningPoint.topic}
+              </span>
+            )}
 
-          {question.learningPoint?.difficulty && (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ${difficultyClass(
-                question.learningPoint.difficulty
-              )}`}
+            {question.learningPoint?.subtopic && (
+              <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200">
+                {question.learningPoint.subtopic}
+              </span>
+            )}
+
+            {question.learningPoint?.difficulty && (
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ${difficultyClass(
+                  question.learningPoint.difficulty
+                )}`}
+              >
+                {question.learningPoint.difficulty}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-start">
+            <button
+              type="button"
+              onClick={handleToggleGood}
+              disabled={isMetaPending}
+              className={`inline-flex h-10 items-center justify-center rounded-xl border px-3 text-sm font-medium transition ${
+                isGood
+                  ? "border-amber-300 bg-amber-50 text-amber-700"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              } disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {question.learningPoint.difficulty}
-            </span>
-          )}
+              👍 Good
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isMetaPending) return;
+                setShowRaiseHandBox((prev) => !prev);
+              }}
+              disabled={isMetaPending}
+              className={`inline-flex h-10 items-center justify-center rounded-xl border px-3 text-sm font-medium transition ${
+                showRaiseHandBox
+                  ? "border-sky-300 bg-sky-50 text-sky-700"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              ✋ 挙手
+            </button>
+          </div>
         </div>
       </div>
 
@@ -162,7 +279,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
               key={choice.key}
               type="button"
               onClick={() => handleSelect(choice.key)}
-              disabled={isPending || revealed}
+              disabled={isAnswerPending || revealed}
               className={getButtonClass(choice.key)}
             >
               <div className="flex items-start gap-3">
@@ -177,8 +294,61 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
           ))}
         </div>
 
-        {isPending && (
+        {!revealed && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={handleRevealAnswer}
+              disabled={!selected || isAnswerPending}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              回答を表示
+            </button>
+          </div>
+        )}
+
+        {isAnswerPending && (
           <p className="mt-4 text-sm text-slate-500">回答を保存しています...</p>
+        )}
+
+        {showRaiseHandBox && (
+          <div className="mt-6 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:p-5">
+            <p className="mb-2 text-sm font-semibold text-slate-900">
+              コメントを入力してください
+            </p>
+            <textarea
+              value={commentInput}
+              onChange={(e) => setCommentInput(e.target.value)}
+              rows={4}
+              placeholder="この問題について気になった点、修正案、質問など"
+              className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleRaiseHandConfirm}
+                disabled={isMetaPending}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-sky-600 px-4 text-sm font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isMetaPending) return;
+                  setShowRaiseHandBox(false);
+                  setCommentInput("");
+                }}
+                disabled={isMetaPending}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                cancel
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              空欄のまま confirm すると、挙手は取り消されます。
+            </p>
+          </div>
         )}
 
         {revealed && feedback && (
@@ -211,6 +381,26 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
                 {feedback.explanation}
               </p>
             </div>
+
+            {savedComments.length > 0 && (
+              <div className="mt-4 border-t border-black/10 pt-4">
+                <p className="mb-2 text-sm font-semibold text-slate-900">
+                  以前のコメント
+                </p>
+                <div className="space-y-2">
+                  {savedComments.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2"
+                    >
+                      <p className="text-sm leading-6 text-slate-700">
+                        {item.comment}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
