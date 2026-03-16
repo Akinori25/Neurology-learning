@@ -47,7 +47,9 @@ function isValidQuestionStyle(
   );
 }
 
-function sanitizeCandidate(candidate: LearningPointCandidate): LearningPointCandidate {
+function sanitizeCandidate(
+  candidate: LearningPointCandidate
+): LearningPointCandidate {
   return {
     title: candidate.title.trim(),
     learningPoint: candidate.learningPoint.trim(),
@@ -61,6 +63,21 @@ function sanitizeCandidate(candidate: LearningPointCandidate): LearningPointCand
           .slice(0, 10)
       : [],
   };
+}
+
+function isValidCandidate(candidate: unknown): candidate is LearningPointCandidate {
+  if (!candidate || typeof candidate !== "object") return false;
+
+  const c = candidate as Record<string, unknown>;
+
+  return (
+    typeof c.title === "string" &&
+    typeof c.learningPoint === "string" &&
+    typeof c.rationale === "string" &&
+    isValidDifficulty(c.difficulty) &&
+    isValidQuestionStyle(c.questionStyle) &&
+    Array.isArray(c.tags)
+  );
 }
 
 export async function generateLearningPointCandidates({
@@ -109,148 +126,178 @@ export async function generateLearningPointCandidates({
     }
   }
 
-  const systemPrompt = `
-あなたは神経内科専門医試験の出題設計者です。
-与えられた分野・資料から、試験で問う価値のある learning point 候補を複数作成してください。
-
-ルール:
-- 日本語で作成する
-- 1候補につき1つの論点に絞る
-- 広すぎる総論は避ける
-- 実際に4択問題へ落とし込みやすい粒度にする
-- 参考資料がある場合は資料に反しない
-- 候補同士の重複を避ける
-- 指定難易度がある場合は全候補をその難易度に揃える
-- title は簡潔で明確にする
-- learningPoint は問題作成の核になる知識を1～3文で述べる
-- rationale は「なぜその論点を問う価値があるか」を簡潔に述べる
-- tags は検索や分類に使える短い語を付ける
-- 出力はJSONのみ
-`;
-
   const difficultyInstruction = targetDifficulty
     ? `生成する候補の難易度は ${targetDifficulty} に統一してください。`
     : "難易度は候補ごとに適切に判断してください。";
 
+  const systemPrompt = `
+あなたは神経内科専門医試験の編集委員です。
+与えられた分野・資料から、専門医試験で問う価値のある learning point 候補を作成してください。
+
+【基本方針】
+- 日本語で出力する
+- 1候補につき1つの明確な論点のみ扱う
+- 実際に4択問題へ落とし込みやすい具体的な粒度にする
+- 候補同士は重複しないようにする
+- 広すぎる総論や曖昧な知識項目は避ける
+- 参考資料がある場合は内容に反しないこと
+- 不確かな情報は推測で補わない
+- 出力はJSONのみとする
+
+【difficulty の基準】
+CORE:
+専門医として必ず知っておくべき基本事項
+
+STANDARD:
+頻出で標準的な知識
+
+HARD:
+複数知識の統合や例外理解を要する
+
+INSANE:
+高度で細部まで問う知識
+
+【questionStyle の基準】
+FACT:
+単一知識を問う問題
+
+CASE:
+症例文から診断・判断を行う問題
+
+DIFFERENTIAL:
+鑑別診断の比較を問う問題
+
+TREATMENT:
+治療選択・適応・禁忌を問う問題
+
+IMAGE:
+画像・波形・病理・検査所見の解釈を問う問題
+
+【各フィールドの定義】
+title:
+12〜32文字程度の簡潔な論点名
+
+learningPoint:
+正答の核になる知識を1〜2文で述べる
+
+rationale:
+なぜ試験で問う価値があるのかを1文で説明する
+
+tags:
+検索・分類に使える短い語を3〜6個
+
+【禁止事項】
+- 疾患総論
+- 疫学のみ
+- 曖昧な知識
+- 4択問題に落とし込みにくい主張
+- 候補間で主語だけ異なる重複論点
+- 参考資料と整合しない内容
+
+【多様性ルール】
+候補間で論点が偏らないようにする。
+同一疾患を扱う場合でも、以下の観点を分けること
+- 病態
+- 臨床症状
+- 検査
+- 鑑別
+- 治療
+- 画像
+
+出力はJSONのみ。
+`;
+
   const userPrompt = `
 【入力情報】
-topic: ${topic}
-subtopic: ${subtopic ?? "未設定"}
-keywords: ${normalizedKeywords || "なし"}
-source title: ${sourceTitle}
-candidate count: ${safeCount}
+topic:
+${topic}
+
+subtopic:
+${subtopic ?? "未設定"}
+
+keywords:
+${normalizedKeywords || "なし"}
+
+source title:
+${sourceTitle ?? "なし"}
+
+candidate count:
+${safeCount}
 
 【難易度指定】
 ${difficultyInstruction}
 
 【参考資料】
-${sourceContext}
+${sourceContext || "なし"}
 
-以下の形式で、learning point 候補を ${safeCount} 件作成してください。
-各候補には以下を含めてください。
+【タスク】
+上記情報をもとに、
+専門医試験で出題価値のある learning point 候補を
+${safeCount}件作成してください。
 
-- title
-- learningPoint
-- rationale
-- difficulty
-- questionStyle
-- tags
+追加ルール:
+- 候補ごとに論点を明確に変える
+- 同一疾患でも観点（病態・検査・鑑別など）を変える
+- learningPoint は問題作成時の核知識として使える密度にする
+- rationale は受験者の理解差を測れる理由を書く
+- tags は簡潔な語を付与する
+- 出力前に、候補間の重複・粒度・資料との整合性を自己点検する
 
-difficulty は CORE / STANDARD / HARD / INSANE
-questionStyle は FACT / CASE / DIFFERENTIAL / TREATMENT / IMAGE
+出力形式:
+{
+  "candidates": [
+    {
+      "title": "",
+      "learningPoint": "",
+      "rationale": "",
+      "difficulty": "CORE | STANDARD | HARD | INSANE",
+      "questionStyle": "FACT | CASE | DIFFERENTIAL | TREATMENT | IMAGE",
+      "tags": ["", ""]
+    }
+  ]
+}
+
+必ずJSONのみ出力する。
 `;
 
   const response = await openai.responses.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4.1",
-    instructions: systemPrompt,
-    input: userPrompt,
-    text: {
-      format: {
-        type: "json_schema",
-        name: "learning_point_candidates",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            candidates: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  title: { type: "string" },
-                  learningPoint: { type: "string" },
-                  rationale: { type: "string" },
-                  difficulty: {
-                    type: "string",
-                    enum: ["CORE", "STANDARD", "HARD", "INSANE"],
-                  },
-                  questionStyle: {
-                    type: "string",
-                    enum: ["FACT", "CASE", "DIFFERENTIAL", "TREATMENT", "IMAGE"],
-                  },
-                  tags: {
-                    type: "array",
-                    items: { type: "string" },
-                  },
-                },
-                required: [
-                  "title",
-                  "learningPoint",
-                  "rationale",
-                  "difficulty",
-                  "questionStyle",
-                  "tags",
-                ],
-              },
-            },
-          },
-          required: ["candidates"],
-        },
-      },
-    },
+    model: "gpt-5-mini",
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
   });
 
-  const content = response.output_text?.trim();
+  const rawText =
+    typeof response.output_text === "string" ? response.output_text : "";
 
-  if (!content) {
-    throw new Error("LLMから候補が返りませんでした。");
-  }
-
-  let parsed: { candidates: LearningPointCandidate[] };
+  let parsed: unknown;
 
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(rawText);
   } catch {
-    console.error("Invalid JSON from LLM:", content);
-    throw new Error("learning point 候補のJSON解析に失敗しました。");
+    throw new Error("LLMの出力がJSONとして解釈できませんでした。");
   }
 
-  if (!parsed || !Array.isArray(parsed.candidates)) {
-    throw new Error("learning point 候補の形式が不正です。");
+  const candidatesRaw =
+    parsed &&
+    typeof parsed === "object" &&
+    "candidates" in parsed &&
+    Array.isArray((parsed as Record<string, unknown>).candidates)
+      ? (parsed as { candidates: unknown[] }).candidates
+      : null;
+
+  if (!candidatesRaw) {
+    throw new Error("LLMの出力に candidates 配列がありませんでした。");
   }
 
-  const candidates = parsed.candidates
-    .filter((candidate): candidate is LearningPointCandidate => {
-      return (
-        !!candidate &&
-        typeof candidate.title === "string" &&
-        typeof candidate.learningPoint === "string" &&
-        typeof candidate.rationale === "string" &&
-        isValidDifficulty(candidate.difficulty) &&
-        isValidQuestionStyle(candidate.questionStyle) &&
-        Array.isArray(candidate.tags)
-      );
-    })
-    .map(sanitizeCandidate)
-    .filter(
-      (candidate) =>
-        candidate.title.length > 0 && candidate.learningPoint.length > 0
-    );
+  const validCandidates = candidatesRaw
+    .filter(isValidCandidate)
+    .map((candidate) => sanitizeCandidate(candidate));
 
-  if (candidates.length === 0) {
+  if (validCandidates.length === 0) {
     throw new Error("有効な learning point 候補を取得できませんでした。");
   }
 
-  return candidates;
+  return validCandidates.slice(0, safeCount);
 }
