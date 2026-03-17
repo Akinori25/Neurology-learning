@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { openai } from "@/lib/openai";
+import { Difficulty } from "@prisma/client";
 
 type GeneratedDraft = {
   stem: string;
@@ -265,7 +266,8 @@ discrimination_score:
 
 export async function generateDraftWithLLM(
   learningPointId: string,
-  createdById?: string | null
+  createdById?: string | null,
+  difficultyOverride?: Difficulty | null
 ) {
   const { lp, chunks } = await retrieveRelevantChunks(learningPointId);
   const now = new Date();
@@ -283,6 +285,7 @@ export async function generateDraftWithLLM(
     }
   }
 
+  const effectiveDifficulty = difficultyOverride ?? lp.difficulty;
   const firstImage = lp.imageLinks[0]?.imageAsset ?? null;
   const hasEvidence = chunks.length > 0;
 
@@ -313,63 +316,112 @@ export async function generateDraftWithLLM(
 
   const systemPrompt = `
 あなたは神経内科専門医試験の問題作成者です。
-以下の規則を厳守してください。
+以下の規則を厳守して、4択単一正答問題を1問作成してください。
+
+【基本原則】
+- 日本語で作成する
+- 神経内科専門医試験レベルとする
+- 与えられた learning point を正答の核として問題を作成する
+- 根拠資料に反する内容を書かない
+- 根拠資料にない内容を推測で補わない
+- 出力はJSONのみとする
 
 【問題作成ルール】
-1. 日本語で作成
-2. 4択単一正答
-3. 正答は1つのみ
-4. 誤答は臨床的にもっともらしいが誤り
-5. 根拠資料と矛盾する内容は禁止
-6. 推測は禁止
-7. 画像問題の場合は画像所見を必ず問題に反映
-8. 神経内科専門医試験レベル
+- 4択単一正答とする
+- 正答は必ず1つだけにする
+- 問題文だけで正答に到達できるようにする
+- 選択肢の文体・長さ・具体性はできるだけ揃える
+- 正答だけが露骨に具体的にならないようにする
+- 明らかにおかしい誤答は禁止する
+- 条件次第で正しくなりうる誤答は禁止する
+- 否定形の設問は必要最小限にする
+- 画像問題では画像情報を問題文と解説に必ず反映する
 
-【問題形式】
-問題文
-↓
-A
-B
-C
-D
+【正答の原則】
+- まず、この設問で正答を正答たらしめる決定的根拠を1つ定める
+- 正答は、その決定的根拠を最も直接に満たす選択肢にする
+- learning point から逸れた周辺知識を正答の中心にしない
 
-【誤答設計】
-誤答は以下のどれかにする
-・頻度が低い疾患
-・類似疾患
-・古い知識
-・検査適応の誤り
-・治療選択の誤り
+【誤答の品質基準】
+誤答は、知識が不十分な受験者や典型例に引きずられる受験者が実際に選びうる、
+臨床的にもっともらしい選択肢にすること。
+一目で除外できる荒唐無稽な誤答は禁止する。
+
+誤答は以下を満たすこと。
+- 正答と同じ領域・同じ文脈に属している
+- 一見すると正しそうに見える
+- ただし、設問条件を丁寧に読むと誤りと判断できる
+- 誤答3つは異なる理由で誤っている
+- 正答との差が1つの決定的ポイントで生じるようにする
+
+【誤答の型】
+誤答は以下の型から作成すること。
+- 典型例の過剰一般化
+- 類似疾患との混同
+- 病態の取り違え
+- 検査適応や所見解釈の誤り
+- 治療適応・禁忌・第一選択の取り違え
+- 病期や重症度の無視
+- 中枢性と末梢性の取り違え
+- よく知られた知識の誤適用
+
+【誤答の難度設計】
+誤答3つは以下の役割をできるだけ分けること。
+- 初学者が選びやすい誤答
+- 中級者が迷いやすい誤答
+- 上級者でも条件の読み落としで迷いうる誤答
+
+【神経内科領域で優先する誤答設計】
+神経内科領域では、誤答は単なる無関係疾患ではなく、
+局在、時間経過、神経所見、検査所見、画像分布、病態、治療適応のうち
+1つだけ決定的に合わない選択肢を優先すること。
 
 【自己検証】
-出力前に必ず確認
-1. 正答が1つか
-2. 他の選択肢が誤りか
-3. 根拠資料と矛盾しないか
+出力前に必ず以下を確認すること。
+1. 正答が1つのみである
+2. 誤答3つがすべて誤りである
+3. 正答が learning point を最も直接に問うている
+4. 問題文・選択肢・解説が根拠資料と矛盾しない
+5. 4選択肢の文体・長さ・具体性に不自然な偏りがない
+6. 画像問題では画像情報が十分に反映されている
 
-問題に問題があれば修正してから出力する。
+【出力形式】
+以下のJSONのみを出力すること。
 
-【出力】
-JSONのみ出力
+{
+  "stem": "",
+  "choiceA": "",
+  "choiceB": "",
+  "choiceC": "",
+  "choiceD": "",
+  "correctAnswer": "A",
+  "explanation": "",
+  "explanationA": "",
+  "explanationB": "",
+  "explanationC": "",
+  "explanationD": ""
+}
 `;
 
   const styleInstruction =
     lp.questionStyle === "CASE"
-      ? "症例形式の問題にしてください（患者背景・経過・検査などを含める）。"
+      ? "症例形式の問題にしてください。患者背景、経過、神経所見、検査所見のうち、正答に必要な情報のみを含めてください。"
       : lp.questionStyle === "IMAGE"
-      ? "画像所見を中心に診断または鑑別を問う問題にしてください。"
+      ? "画像または検査所見の解釈を中心に、診断または鑑別を問う問題にしてください。画像情報から読むべきポイントを明確に反映してください。"
       : lp.questionStyle === "TREATMENT"
-      ? "治療方針や薬剤選択を問う問題にしてください。"
-      : "知識問題として簡潔に作成してください。";
+      ? "治療方針、薬剤選択、適応、禁忌、第一選択を問う問題にしてください。"
+      : lp.questionStyle === "DIFFERENTIAL"
+      ? "類似疾患や近縁概念との鑑別を問う問題にしてください。鑑別の決め手が明確になるようにしてください。"
+      : "知識問題として簡潔かつ明確に作成してください。";
 
   const difficultyInstruction =
-    lp.difficulty === "CORE"
-      ? "必修レベルの問題にしてください。専門医試験で頻出の知識を問う問題。"
-      : lp.difficulty === "STANDARD"
-      ? "一般レベルの問題にしてください。鑑別診断や病態理解を必要とする問題。"
-      : lp.difficulty === "HARD"
-      ? "難問レベルの問題にしてください。高度な臨床推論や文献知識を必要とする問題。"
-      : "超難問レベルの問題にしてください。神経内科専門医でも正答が難しいレベルの問題。";
+    effectiveDifficulty === "CORE"
+      ? "必修レベルの問題にしてください。神経内科専門医試験で頻出の基本知識を問ってください。"
+      : effectiveDifficulty === "STANDARD"
+      ? "標準レベルの問題にしてください。典型例の理解や基本的な鑑別・病態理解を要する問題にしてください。"
+      : effectiveDifficulty === "HARD"
+      ? "難問レベルの問題にしてください。複数の知識の統合、例外、臨床推論を要する問題にしてください。"
+      : "最難関レベルの問題にしてください。細かな例外、深い病態理解、専門的知識の統合を要する問題にしてください。";
 
   const userPrompt = `
 【論点】
@@ -377,32 +429,45 @@ topic: ${lp.topic}
 subtopic: ${lp.subtopic ?? "なし"}
 title: ${lp.title}
 
-learning point:
+【learning point】
 ${lp.learningPoint}
 
----
+【出題意図】
+${lp.rationale ?? "未設定"}
 
 【問題形式】
 ${styleInstruction}
 
----
-
 【問題難易度】
 ${difficultyInstruction}
 
----
-
 【画像情報】
-${imageContext}
-
----
+${imageContext || "なし"}
 
 【根拠資料】
-${contextText}
+${contextText || "なし"}
 
----
-
+【タスク】
+上記の learning point を正答の核として、
 神経内科専門医試験演習用の4択単一正答問題を1問作成してください。
+
+追加条件:
+- stem は簡潔だが、解答に必要な情報は不足させない
+- まず、この設問で正答となる決定的根拠を1つ定め、その根拠を最も直接に問うこと
+- 正答は learning point を最も直接に反映するものにする
+- 正答以外の3選択肢は、それぞれ別の誤り方で誤っていること
+- 誤答は、知識不足、典型例バイアス、類似概念との混同で選ばれうる内容にすること
+- 誤答は、無関係すぎる選択肢や露骨に雑な選択肢にしないこと
+- 少なくとも1つは上級者でも迷いうる高品質な誤答を含めること
+- 4選択肢は同じレベルの具体性・長さ・文体に揃えること
+- CASE の場合は、年齢・性別・主訴・経過・神経所見・検査所見のうち必要な要素のみを含める
+- FACT の場合は、回りくどい症例文にしない
+- DIFFERENTIAL の場合は、鑑別の決め手が明確になるようにする
+- TREATMENT の場合は、適応・禁忌・第一選択・支持療法の区別が明確になるようにする
+- IMAGE の場合は、画像情報から判断すべきポイントを問題文と解説に明示する
+- explanation では、正答の根拠に加えて、他の3選択肢がなぜ誤りかも簡潔に説明する
+
+必ず指定されたJSON形式のみを出力すること。
 `;
 
   const response = await openai.responses.create({
@@ -486,10 +551,10 @@ ${contextText}
       explanationC: draft.explanationC ?? null,
       explanationD: draft.explanationD ?? null,
       llmModel: process.env.OPENAI_MODEL ?? "gpt-4.1",
-      promptVersion: "rag-v3-audited",
+      promptVersion: "rag-v4-difficulty-override",
       generationMeta: {
         model: process.env.OPENAI_MODEL ?? "gpt-4.1",
-        promptVersion: "rag-v3-audited",
+        promptVersion: "rag-v4-difficulty-override",
         retrievedChunkIds: chunks.map((c) => c.id),
         retrievedChunkCount: chunks.length,
         hasEvidence,
@@ -499,7 +564,9 @@ ${contextText}
         auditReason: auditResult.auditReason,
         generatedAt: new Date().toISOString(),
         questionStyle: lp.questionStyle,
-        difficulty: lp.difficulty,
+        difficulty: effectiveDifficulty,
+        originalLearningPointDifficulty: lp.difficulty,
+        learningPointOverrideUsed: difficultyOverride ?? null,
         topic: lp.topic,
         subtopic: lp.subtopic ?? null,
         learningPointOrigin: lp.origin,
@@ -530,5 +597,5 @@ ${contextText}
     });
   }
 
-  return created;
+  return created.id;
 }

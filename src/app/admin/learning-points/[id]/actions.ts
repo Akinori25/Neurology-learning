@@ -16,12 +16,15 @@ export async function generateDraftFromLearningPoint(formData: FormData) {
     throw new Error("論点IDがありません。");
   }
 
-  await generateDraftWithLLM(learningPointId);
+  const createdDraftId = await generateDraftWithLLM(learningPointId);
 
   revalidatePath("/admin/learning-points");
   revalidatePath(`/admin/learning-points/${learningPointId}`);
   revalidatePath("/admin/drafts");
+  revalidatePath(`/admin/drafts/${createdDraftId}`);
   revalidatePath("/quiz");
+
+  redirect(`/admin/drafts/${createdDraftId}`);
 }
 
 export async function deleteLearningPoint(formData: FormData) {
