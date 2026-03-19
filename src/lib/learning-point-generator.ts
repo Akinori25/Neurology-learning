@@ -96,100 +96,102 @@ export async function generateLearningPointCandidates({
     ? `生成する候補の難易度は ${targetDifficulty} に統一してください。`
     : "難易度は候補ごとに適切に判断してください。";
 
-  const systemPrompt = `
-あなたは神経内科専門医試験の編集委員です。
-与えられた分野から、専門医試験で問う価値のある learning point 候補を作成してください。
+const systemPrompt = `
+You are an editorial board member responsible for creating questions for the neurology board examination.
 
-【基本方針】
-- 日本語で出力する
-- 検索・知識参照は英語ベースで行う
-- references は英語論文・英語レビュー・英語ガイドラインを優先する
-- 1候補につき1つの明確な論点のみ扱う
-- 実際に4択問題へ落とし込みやすい具体的な粒度にする
-- 候補同士は重複しないようにする
-- 広すぎる総論や曖昧な知識項目は避ける
-- 不確かな情報は推測で補わない
-- 出力はJSONのみとする
+Generate high-quality learning point candidates that are suitable for board-style multiple-choice questions.
 
-【difficulty の基準】
+【General Principles】
+- Output must be in English
+- Retrieval and knowledge grounding must be based on English sources
+- References should prioritize English journal articles, reviews, and clinical guidelines
+- Each candidate must focus on exactly one clear concept
+- The content must be specific enough to be converted into a 4-option MCQ
+- Avoid duplication across candidates
+- Avoid overly broad or vague statements
+- Do not fabricate or infer uncertain information
+- Output must be JSON only
+
+【Difficulty Definition】
 CORE:
-専門医として必ず知っておくべき基本事項
+Essential knowledge every neurologist must know
 
 STANDARD:
-頻出で標準的な知識
+Common and frequently tested knowledge
 
 HARD:
-複数知識の統合や例外理解を要する
+Requires integration of multiple concepts or understanding of exceptions
 
 INSANE:
-高度で細部まで問う知識
+Highly detailed or expert-level knowledge
 
-【各フィールドの定義】
+【Field Definitions】
 title:
-12〜32文字程度の簡潔な論点名
+A concise concept title (12–32 characters)
 
 learningPoint:
-正答の核になる知識を1〜2文で述べる
+Core knowledge forming the correct answer (1–2 sentences)
 
 rationale:
-なぜ試験で問う価値があるのかを1文で説明する
+One sentence explaining why this is worth testing
 
 tags:
-検索・分類に使える短い語を3〜6個
+3–6 short keywords for categorization
 
-【禁止事項】
-- 疾患総論
-- 疫学のみ
-- 曖昧な知識
-- 4択問題に落とし込みにくい主張
-- 候補間で主語だけ異なる重複論点
+【Prohibited】
+- General disease overviews
+- Epidemiology-only statements
+- Ambiguous knowledge
+- Concepts not suitable for MCQ
+- Duplicate concepts with only subject variation
 
-【多様性ルール】
-候補間で論点が偏らないようにする。
-同一疾患を扱う場合でも、以下の観点を分けること
-- 病態
-- 臨床症状
-- 検査
-- 鑑別
-- 治療
-- 画像
+【Diversity Rule】
+Avoid bias across candidates.
+Even within the same disease, separate perspectives:
+- Pathophysiology
+- Clinical features
+- Investigation
+- Differential diagnosis
+- Treatment
+- Imaging
 
-出力はJSONのみ。
+Output must be JSON only.
 `;
 
-  const userPrompt = `
-【入力情報】
+const userPrompt = `
+【Input】
 topic:
 ${topic}
 
 subtopic:
-${subtopic ?? "未設定"}
+${subtopic ?? "not specified"}
 
 keywords:
-${normalizedKeywords || "なし"}
+${normalizedKeywords || "none"}
 
 candidate count:
 ${safeCount}
 
-【難易度指定】
+【Difficulty Instruction】
 ${difficultyInstruction}
 
-【タスク】
-上記情報をもとに、
-専門医試験で出題価値のある learning point 候補を
-${safeCount}件作成してください。
+【Task】
+Based on the above, generate ${safeCount} learning point candidates
+suitable for neurology board examination questions.
 
-追加ルール:
-- keywords は英語ベースで解釈すること
-- 候補ごとに論点を明確に変える
-- 同一疾患でも観点（病態・検査・鑑別など）を変える
-- learningPoint は問題作成時の核知識として使える密度にする
-- rationale は受験者の理解差を測れる理由を書く
-- tags は簡潔な語を付与する
-- 出力前に、候補間の重複・粒度を自己点検する
-- 可能であれば、その知識を裏付ける信頼できるURLを references として2〜3件含める（なければ空配列でよい）
+Additional rules:
+- Interpret keywords in English
+- Each candidate must represent a distinct concept
+- Even within the same disease, vary perspectives (pathophysiology, diagnosis, etc.)
+- learningPoint must be dense and usable as the core of a question
+- rationale must explain how it discriminates examinee understanding
+- tags must be concise
+- Perform internal deduplication and granularity check before output
+- Include 2–3 references if possible
+- At least one reference should be an English academic source (journal, review, or guideline)
+- Avoid using only non-English websites
 
-出力形式:
+【Output format】
 {
   "candidates": [
     {
@@ -203,7 +205,7 @@ ${safeCount}件作成してください。
   ]
 }
 
-必ず上記のJSON形式のみで出力すること。Markdownのバッククォート等の余分な文字は含めないでください。
+Output JSON only. Do not include markdown or extra text.
 `;
 
   const model = process.env.PERPLEXITY_MODEL ?? "sonar-pro";
