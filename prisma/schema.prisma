@@ -8,19 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum SourceType {
-  TEXTBOOK
-  GUIDELINE
-  PAPER
-  PAST_EXAM
-  NOTE
-}
-
-enum SourceStatus {
-  ACTIVE
-  ARCHIVED
-}
-
 enum Difficulty {
   CORE
   STANDARD
@@ -28,75 +15,9 @@ enum Difficulty {
   INSANE
 }
 
-enum QuestionStyle {
-  FACT
-  CASE
-  DIFFERENTIAL
-  TREATMENT
-  IMAGE
-}
-
-enum ImageModality {
-  MRI
-  CT
-  EEG
-  EMG
-  NCS
-  PATHOLOGY
-  MUSCLE_PATHOLOGY
-  CLINICAL_PHOTO
-  FUNDUS
-  PET
-  ULTRASOUND
-  OTHER
-}
-
-enum ImageAssetStatus {
-  ACTIVE
-  ARCHIVED
-}
-
 enum LearningPointOrigin {
   MANUAL
-  LLM
-  SOURCE_LLM
-}
-
-model Source {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  type        SourceType
-  author      String?
-  year        Int?
-  fileUrl     String?
-  rawText     String?
-  status      SourceStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  chunks         SourceChunk[]
-  learningPoints LearningPoint[]
-  images         ImageAsset[]
-}
-
-model SourceChunk {
-  id         String   @id @default(cuid())
-  sourceId   String
-  chunkIndex Int
-  chapter    String?
-  pageStart  Int?
-  pageEnd    Int?
-  text       String   @db.Text
-  metadata   Json?
-  createdAt  DateTime @default(now())
-
-  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  citedInDrafts QuestionDraftCitation[]
-
-  @@unique([sourceId, chunkIndex])
-  @@index([sourceId])
+  PERPLEXITY
 }
 
 enum UserRole {
@@ -124,7 +45,6 @@ model User {
 
 model LearningPoint {
   id              String              @id @default(cuid())
-  sourceId        String?
   createdById     String?
   topic           String
   subtopic        String?
@@ -132,19 +52,20 @@ model LearningPoint {
   learningPoint   String              @db.Text
   rationale       String?             @db.Text
   difficulty      Difficulty
-  questionStyle   QuestionStyle
   tags            String[]
-  sourcePriority  Int                 @default(0)
-  origin          LearningPointOrigin
-  lastGeneratedAt DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  origin          LearningPointOrigin @default(PERPLEXITY)
 
-  source    Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  createdBy User?   @relation("LearningPointCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  generatedByModel String?
+  generationMeta   Json?
+  lastGeneratedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy User? @relation("LearningPointCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   drafts     QuestionDraft[]
-  imageLinks LearningPointImage[]
+  references LearningPointReference[]
 
   @@index([topic])
   @@index([subtopic])
@@ -155,51 +76,31 @@ model LearningPoint {
   @@index([topic, difficulty])
 }
 
-model LearningPointImage {
+model LearningPointReference {
   id              String   @id @default(cuid())
   learningPointId String
-  imageAssetId    String
-  note            String?
+  url             String
+  orderIndex      Int      @default(0)
   createdAt       DateTime @default(now())
 
   learningPoint LearningPoint @relation(fields: [learningPointId], references: [id], onDelete: Cascade)
-  imageAsset    ImageAsset    @relation(fields: [imageAssetId], references: [id], onDelete: Cascade)
 
-  @@unique([learningPointId, imageAssetId])
+  @@unique([learningPointId, url])
   @@index([learningPointId])
-  @@index([imageAssetId])
+  @@index([url])
+  @@index([learningPointId, orderIndex])
 }
 
 model ImageAsset {
-  id            String           @id @default(cuid())
-  sourceId      String?
-  title         String
-  description   String?          @db.Text
-  fileUrl       String
-  thumbnailUrl  String?
-  modality      ImageModality
-  topic         String
-  subtopic      String?
-  diagnosis     String?
-  findings      String?          @db.Text
-  notes         String?          @db.Text
-  sourceLabel   String?
-  sourceYear    Int?
-  copyrightNote String?
-  status        ImageAssetStatus @default(ACTIVE)
-  tags          String[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id           String   @id @default(cuid())
+  fileUrl      String
+  thumbnailUrl String?
 
-  source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
 
-  learningPoints LearningPointImage[]
   questionDrafts QuestionDraft[]
 
-  @@index([topic])
-  @@index([subtopic])
-  @@index([modality])
-  @@index([status])
+  @@index([createdAt])
 }
 
 model QuestionDraft {
@@ -222,11 +123,11 @@ model QuestionDraft {
   explanationC String? @db.Text
   explanationD String? @db.Text
 
+  llmProvider    String?
   llmModel       String?
   promptVersion  String?
   generationMeta Json?
 
-  hasImage    Boolean   @default(false)
   isPublished Boolean   @default(false)
   publishedAt DateTime?
 
@@ -237,7 +138,6 @@ model QuestionDraft {
   imageAsset    ImageAsset?   @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
   createdBy     User?         @relation("QuestionDraftCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
-  citations  QuestionDraftCitation[]
   attempts   UserAttempt[]
   goods      DraftGood[]
   raiseHands DraftRaiseHand[]
@@ -251,20 +151,6 @@ model QuestionDraft {
   @@index([updatedAt])
   @@index([isPublished, publishedAt])
   @@index([isPublished, learningPointId])
-}
-
-model QuestionDraftCitation {
-  id              String   @id @default(cuid())
-  questionDraftId String
-  sourceChunkId   String
-  note            String?
-  createdAt       DateTime @default(now())
-
-  questionDraft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
-  sourceChunk   SourceChunk   @relation(fields: [sourceChunkId], references: [id], onDelete: Cascade)
-
-  @@index([questionDraftId])
-  @@index([sourceChunkId])
 }
 
 model DraftGood {
@@ -306,7 +192,7 @@ model QuestionSet {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  createdBy User?             @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy User?           @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
   items     QuestionSetItem[]
 
   @@index([createdById])

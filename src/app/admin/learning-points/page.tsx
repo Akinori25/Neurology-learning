@@ -26,22 +26,7 @@ function formatDifficulty(value: string) {
   }
 }
 
-function formatQuestionStyle(value: string) {
-  switch (value) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return value;
-  }
-}
+
 
 function formatOrigin(value: string) {
   switch (value) {
@@ -82,12 +67,11 @@ export default async function LearningPointsPage({
         learningPoint: true,
         topic: true,
         subtopic: true,
-        questionStyle: true,
         difficulty: true,
         origin: true,
         _count: {
           select: {
-            imageLinks: true,
+            references: true,
             drafts: true,
           },
         },
@@ -167,11 +151,7 @@ export default async function LearningPointsPage({
                       {lp.subtopic ?? "サブトピック未設定"}
                     </p>
                   </div>
-
                   <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                      {formatQuestionStyle(lp.questionStyle)}
-                    </span>
                     <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
                       {formatDifficulty(lp.difficulty)}
                     </span>
@@ -182,9 +162,9 @@ export default async function LearningPointsPage({
 
                   <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-3 text-xs">
                     <div>
-                      <p className="text-gray-500">画像候補</p>
+                      <p className="text-gray-500">参考資料</p>
                       <p className="mt-1 font-medium text-gray-900">
-                        {lp._count.imageLinks}件
+                        {lp._count.references}件
                       </p>
                     </div>
                     <div>
@@ -207,10 +187,9 @@ export default async function LearningPointsPage({
                   <tr className="text-left">
                     <th className="px-4 py-3 font-semibold">タイトル</th>
                     <th className="px-4 py-3 font-semibold">分野</th>
-                    <th className="px-4 py-3 font-semibold">形式</th>
                     <th className="px-4 py-3 font-semibold">難易度</th>
                     <th className="px-4 py-3 font-semibold">作成方法</th>
-                    <th className="px-4 py-3 font-semibold">画像候補</th>
+                    <th className="px-4 py-3 font-semibold">参考資料</th>
                     <th className="px-4 py-3 font-semibold">草案数</th>
                     <th className="px-4 py-3 font-semibold">操作</th>
                   </tr>
@@ -237,9 +216,7 @@ export default async function LearningPointsPage({
                         </div>
                       </td>
 
-                      <td className="px-4 py-4">
-                        {formatQuestionStyle(lp.questionStyle)}
-                      </td>
+
 
                       <td className="px-4 py-4">
                         {formatDifficulty(lp.difficulty)}
@@ -252,9 +229,9 @@ export default async function LearningPointsPage({
                       </td>
 
                       <td className="px-4 py-4">
-                        {lp._count.imageLinks > 0 ? (
+                        {lp._count.references > 0 ? (
                           <span className="inline-flex whitespace-nowrap rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
-                            {lp._count.imageLinks}件
+                            {lp._count.references}件
                           </span>
                         ) : (
                           <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">

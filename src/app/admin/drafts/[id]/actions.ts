@@ -74,7 +74,6 @@ export async function deleteDraft(formData: FormData) {
       setItems: true,
       goods: true,
       raiseHands: true,
-      citations: true,
       attempts: true,
     },
   });

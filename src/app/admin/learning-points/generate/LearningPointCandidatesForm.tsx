@@ -18,34 +18,15 @@ function formatDifficulty(value: string) {
   }
 }
 
-function formatQuestionStyle(value: string) {
-  switch (value) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return value;
-  }
-}
-
 type Props = {
   topic: string;
   subtopic: string;
-  sourceId: string;
   candidates: LearningPointCandidate[];
 };
 
 export default function LearningPointCandidatesForm({
   topic,
   subtopic,
-  sourceId,
   candidates,
 }: Props) {
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>(
@@ -112,7 +93,6 @@ export default function LearningPointCandidatesForm({
 
       <input type="hidden" name="topic" value={topic} />
       <input type="hidden" name="subtopic" value={subtopic} />
-      <input type="hidden" name="sourceId" value={sourceId} />
       <input type="hidden" name="candidatesJson" value={candidatesJson} />
 
       {selectedIndexes.map((index) => (
@@ -136,9 +116,6 @@ export default function LearningPointCandidatesForm({
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
                   {formatDifficulty(candidate.difficulty)}
-                </span>
-                <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
-                  {formatQuestionStyle(candidate.questionStyle)}
                 </span>
               </div>
 

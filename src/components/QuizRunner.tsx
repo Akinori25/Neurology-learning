@@ -14,7 +14,7 @@ type QuizQuestion = {
   explanation: string;
   imageAsset?: {
     fileUrl: string;
-    title: string;
+    id: string;
   } | null;
   learningPoint?: {
     topic: string;

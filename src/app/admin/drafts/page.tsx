@@ -36,23 +36,6 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
-function formatQuestionStyle(style: string) {
-  switch (style) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return style;
-  }
-}
-
 function formatDifficulty(difficulty: string) {
   switch (difficulty) {
     case "CORE":
@@ -154,7 +137,6 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
     id: true,
     stem: true,
     version: true,
-    hasImage: true,
     isPublished: true,
     publishedAt: true,
     updatedAt: true,
@@ -163,19 +145,17 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
         title: true,
         topic: true,
         subtopic: true,
-        questionStyle: true,
         difficulty: true,
         origin: true,
       },
     },
     imageAsset: {
       select: {
-        title: true,
+        id: true,
       },
     },
     _count: {
       select: {
-        citations: true,
         goods: true,
         raiseHands: true,
         setItems: true,
@@ -405,16 +385,13 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
 
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                      {formatQuestionStyle(draft.learningPoint.questionStyle)}
-                    </span>
-                    <span className="inline-flex rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
                       {formatDifficulty(draft.learningPoint.difficulty)}
                     </span>
                     <span className="inline-flex rounded-full border bg-purple-50 px-2 py-1 text-xs text-purple-700">
                       {formatLearningPointOrigin(draft.learningPoint.origin)}
                     </span>
 
-                    {draft.hasImage && draft.imageAsset ? (
+                    {draft.imageAsset ? (
                       <span className="inline-flex rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
                         画像あり
                       </span>
@@ -437,12 +414,6 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
 
                   <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-3 text-xs">
                     <div>
-                      <p className="text-gray-500">根拠</p>
-                      <p className="mt-1 font-medium text-gray-900">
-                        {draft._count.citations}件
-                      </p>
-                    </div>
-                    <div>
                       <p className="text-gray-500">問題集</p>
                       <p className="mt-1 font-medium text-gray-900">
                         {draft._count.setItems}件
@@ -462,9 +433,9 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                     </div>
                   </div>
 
-                  {draft.hasImage && draft.imageAsset && (
+                  {draft.imageAsset && (
                     <p className="text-xs text-gray-500">
-                      画像: {draft.imageAsset.title}
+                      画像: あり
                     </p>
                   )}
 
@@ -488,11 +459,9 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                   <tr className="text-left">
                     <th className="px-4 py-3 font-semibold">問題文</th>
                     <th className="px-4 py-3 font-semibold">論点</th>
-                    <th className="px-4 py-3 font-semibold">形式</th>
                     <th className="px-4 py-3 font-semibold">難易度</th>
                     <th className="px-4 py-3 font-semibold">作成方法</th>
                     <th className="px-4 py-3 font-semibold">画像</th>
-                    <th className="px-4 py-3 font-semibold">根拠</th>
                     <th className="px-4 py-3 font-semibold">反応</th>
                     <th className="px-4 py-3 font-semibold">問題集</th>
                     <th className="px-4 py-3 font-semibold">公開</th>
@@ -528,11 +497,9 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                       </td>
 
                       <td className="px-4 py-4">
-                        {formatQuestionStyle(draft.learningPoint.questionStyle)}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        {formatDifficulty(draft.learningPoint.difficulty)}
+                        <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                          {formatDifficulty(draft.learningPoint.difficulty)}
+                        </span>
                       </td>
 
                       <td className="px-4 py-4">
@@ -542,26 +509,17 @@ export default async function DraftsPage({ searchParams }: DraftsPageProps) {
                       </td>
 
                       <td className="px-4 py-4">
-                        {draft.hasImage && draft.imageAsset ? (
+                        {draft.imageAsset ? (
                           <div className="space-y-1">
                             <span className="inline-flex whitespace-nowrap rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
                               あり
                             </span>
-                            <p className="max-w-[180px] text-xs text-gray-500">
-                              {draft.imageAsset.title}
-                            </p>
                           </div>
                         ) : (
                           <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-500">
                             なし
                           </span>
                         )}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className="inline-flex whitespace-nowrap rounded-full border bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                          {draft._count.citations}件
-                        </span>
                       </td>
 
                       <td className="px-4 py-4">

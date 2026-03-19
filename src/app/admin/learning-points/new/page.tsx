@@ -3,15 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { createLearningPoint } from "./actions";
 
 export default async function NewLearningPointPage() {
-  const [sources, images] = await Promise.all([
-    prisma.source.findMany({
-      orderBy: { title: "asc" },
-    }),
-    prisma.imageAsset.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { title: "asc" },
-    }),
-  ]);
 
   return (
     <main className="mx-auto max-w-4xl p-6">
@@ -111,22 +102,6 @@ export default async function NewLearningPointPage() {
               </select>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">問題形式 *</label>
-              <select
-                name="questionStyle"
-                defaultValue="FACT"
-                className="w-full rounded-xl border px-4 py-3"
-                required
-              >
-                <option value="FACT">知識</option>
-                <option value="CASE">症例</option>
-                <option value="DIFFERENTIAL">鑑別</option>
-                <option value="TREATMENT">治療</option>
-                <option value="IMAGE">画像</option>
-              </select>
-            </div>
-
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium">
                 タグ（カンマ区切り）
@@ -137,46 +112,21 @@ export default async function NewLearningPointPage() {
                 placeholder="例: CIDP, 髄液, 蛋白細胞解離"
               />
             </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">資料・画像</h2>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium">参照資料</label>
-              <select
-                name="sourceId"
+            
+            <div className="md:col-span-2 mt-4">
+              <label className="mb-2 block text-sm font-medium">参考資料 (URL)</label>
+              <p className="text-xs text-gray-500 mb-2">複数ある場合は改行で区切ってください</p>
+              <textarea
+                name="references"
+                rows={3}
                 className="w-full rounded-xl border px-4 py-3"
-                defaultValue=""
-              >
-                <option value="">未選択</option>
-                {sources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium">候補画像</label>
-              <select
-                name="imageAssetId"
-                className="w-full rounded-xl border px-4 py-3"
-                defaultValue=""
-              >
-                <option value="">未選択</option>
-                {images.map((image) => (
-                  <option key={image.id} value={image.id}>
-                    {image.title}
-                  </option>
-                ))}
-              </select>
+                placeholder="https://example.com/guideline1&#10;https://example.com/guideline2"
+              />
             </div>
           </div>
         </section>
+
+
 
         <div className="flex gap-3">
           <button

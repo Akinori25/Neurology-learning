@@ -53,10 +53,6 @@ export async function deleteLearningPoint(formData: FormData) {
     );
   }
 
-  await prisma.learningPointImage.deleteMany({
-    where: { learningPointId },
-  });
-
   await prisma.learningPoint.delete({
     where: { id: learningPointId },
   });

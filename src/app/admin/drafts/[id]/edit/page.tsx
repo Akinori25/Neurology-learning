@@ -3,23 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updateDraft } from "./actions";
 
-function formatQuestionStyle(style: string) {
-  switch (style) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return style;
-  }
-}
-
 function formatDifficulty(difficulty: string) {
   switch (difficulty) {
     case "CORE":
@@ -104,10 +87,7 @@ export default async function DraftEditPage({
                   ? ` / ${draft.learningPoint.subtopic}`
                   : ""}
               </p>
-              <p className="mt-2">
-                <span className="font-medium">形式:</span>{" "}
-                {formatQuestionStyle(draft.learningPoint.questionStyle)}
-              </p>
+
               <p className="mt-2">
                 <span className="font-medium">難易度:</span>{" "}
                 {formatDifficulty(draft.learningPoint.difficulty)}
@@ -128,14 +108,9 @@ export default async function DraftEditPage({
             <div className="rounded-xl border bg-gray-50 p-4 text-sm">
               <p>
                 <span className="font-medium">画像:</span>{" "}
-                {draft.imageAsset ? draft.imageAsset.title : "なし"}
+                {draft.imageAsset ? "あり" : "なし"}
               </p>
-              {draft.imageAsset?.findings && (
-                <p className="mt-2 leading-6">
-                  <span className="font-medium">所見:</span>{" "}
-                  {draft.imageAsset.findings}
-                </p>
-              )}
+
             </div>
           </div>
         </section>

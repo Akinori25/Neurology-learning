@@ -29,23 +29,6 @@ function formatLearningPointOrigin(origin: string) {
   }
 }
 
-function formatQuestionStyle(style: string) {
-  switch (style) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return style;
-  }
-}
-
 function formatDifficulty(difficulty: string) {
   switch (difficulty) {
     case "CORE":
@@ -85,15 +68,7 @@ export default async function DraftDetailPage({
     include: {
       learningPoint: true,
       imageAsset: true,
-      citations: {
-        include: {
-          sourceChunk: {
-            include: {
-              source: true,
-            },
-          },
-        },
-      },
+
       goods: true,
       raiseHands: true,
       setItems: {
@@ -203,7 +178,7 @@ export default async function DraftDetailPage({
                   {isPublished ? "公開中" : "下書き"}
                 </span>
 
-                {draft.hasImage && draft.imageAsset && (
+                {draft.imageAsset && (
                   <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                     画像問題
                   </span>
@@ -222,12 +197,9 @@ export default async function DraftDetailPage({
                 <div className="mb-6">
                   <img
                     src={draft.imageAsset.fileUrl}
-                    alt={draft.imageAsset.title}
+                    alt="画像"
                     className="max-h-[420px] rounded-xl border border-gray-200"
                   />
-                  <p className="mt-2 text-sm text-gray-500">
-                    {draft.imageAsset.title}
-                  </p>
                 </div>
               )}
 
@@ -449,14 +421,7 @@ export default async function DraftDetailPage({
                     {draft.learningPoint.subtopic ?? "未設定"}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                    形式
-                  </p>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {formatQuestionStyle(draft.learningPoint.questionStyle)}
-                  </p>
-                </div>
+
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     難易度
@@ -518,59 +483,14 @@ export default async function DraftDetailPage({
                 <h3 className={sectionTitleClassName()}>画像メタデータ</h3>
                 <div className="space-y-3 text-sm leading-6 text-gray-700">
                   <p>
-                    <span className="font-medium text-gray-900">タイトル:</span>{" "}
-                    {draft.imageAsset.title}
+                    <span className="font-medium text-gray-900">ID:</span>{" "}
+                    {draft.imageAsset.id}
                   </p>
-                  <p>
-                    <span className="font-medium text-gray-900">
-                      モダリティ:
-                    </span>{" "}
-                    {draft.imageAsset.modality}
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-900">診断:</span>{" "}
-                    {draft.imageAsset.diagnosis ?? "未設定"}
-                  </p>
-                  <p>
-                    <span className="font-medium text-gray-900">所見:</span>{" "}
-                    {draft.imageAsset.findings ?? "未設定"}
-                  </p>
+
                 </div>
               </section>
             )}
 
-            <section className={cardClassName()}>
-              <h3 className={sectionTitleClassName()}>根拠資料</h3>
-
-              {draft.citations.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  根拠資料の紐付けはありません。
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {draft.citations.map((citation) => (
-                    <div
-                      key={citation.id}
-                      className="rounded-xl border border-gray-200 bg-gray-50 p-4"
-                    >
-                      <p className="text-sm font-medium text-gray-900">
-                        {citation.sourceChunk.source.title}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {citation.sourceChunk.chapter ?? "章未設定"}
-                        {citation.sourceChunk.pageStart
-                          ? ` / p.${citation.sourceChunk.pageStart}`
-                          : ""}
-                        {citation.note ? ` / ${citation.note}` : ""}
-                      </p>
-                      <p className="mt-3 text-sm leading-7 text-gray-700">
-                        {citation.sourceChunk.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
 
             {draft.raiseHands.length > 0 && (
               <section className={cardClassName()}>

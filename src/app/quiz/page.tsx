@@ -80,7 +80,7 @@ const questionSelect = {
   imageAsset: {
     select: {
       fileUrl: true,
-      title: true,
+      id: true,
     },
   },
   learningPoint: {
@@ -132,7 +132,7 @@ function formatQuestion(question: SelectedQuestion | null) {
     imageAsset: question.imageAsset
       ? {
           fileUrl: question.imageAsset.fileUrl,
-          title: question.imageAsset.title,
+          id: question.imageAsset.id,
         }
       : null,
     learningPoint: question.learningPoint

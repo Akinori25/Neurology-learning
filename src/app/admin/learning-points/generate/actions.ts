@@ -14,31 +14,18 @@ function isDifficulty(value: string | null | undefined): value is Difficulty {
   );
 }
 
-function isQuestionStyle(
-  value: string | null | undefined
-): value is "FACT" | "CASE" | "DIFFERENTIAL" | "TREATMENT" | "IMAGE" {
-  return (
-    value === "FACT" ||
-    value === "CASE" ||
-    value === "DIFFERENTIAL" ||
-    value === "TREATMENT" ||
-    value === "IMAGE"
-  );
-}
-
 export type LearningPointCandidate = {
   title: string;
   learningPoint: string;
   rationale?: string | null;
   difficulty: "CORE" | "STANDARD" | "HARD" | "INSANE";
-  questionStyle: "FACT" | "CASE" | "DIFFERENTIAL" | "TREATMENT" | "IMAGE";
   tags: string[];
+  references: string[];
 };
 
 export async function generateLearningPointCandidatesAction(formData: FormData) {
   const topic = (formData.get("topic") as string)?.trim();
   const subtopic = (formData.get("subtopic") as string)?.trim() || "";
-  const sourceId = ((formData.get("sourceId") as string)?.trim() || "") || null;
   const keywords = (formData.get("keywords") as string)?.trim() || "";
   const countRaw = (formData.get("count") as string)?.trim() || "5";
   const targetDifficultyRaw = (formData.get("targetDifficulty") as string)?.trim();
@@ -53,10 +40,9 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
     ? targetDifficultyRaw
     : undefined;
 
-  const candidates = await generateLearningPointCandidates({
+  const result = await generateLearningPointCandidates({
     topic,
     subtopic,
-    sourceId,
     keywords,
     count,
     targetDifficulty,
@@ -65,19 +51,21 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
   return {
     topic,
     subtopic,
-    sourceId,
     keywords,
     count,
     targetDifficulty: targetDifficulty ?? "",
-    candidates,
+    candidates: result.candidates,
+    generatedByModel: result.generatedByModel,
+    generationMeta: result.generationMeta,
   };
 }
 
 export async function saveLearningPointCandidates(formData: FormData) {
   const topic = (formData.get("topic") as string)?.trim();
   const subtopic = (formData.get("subtopic") as string)?.trim() || null;
-  const sourceId = ((formData.get("sourceId") as string)?.trim() || "") || null;
   const candidatesJson = (formData.get("candidatesJson") as string)?.trim();
+  const generatedByModel = (formData.get("generatedByModel") as string)?.trim() || null;
+  const generationMetaJson = (formData.get("generationMeta") as string)?.trim() || null;
 
   if (!topic) {
     throw new Error("topic は必須です。");
@@ -97,11 +85,19 @@ export async function saveLearningPointCandidates(formData: FormData) {
   }
 
   let parsedCandidates: unknown;
-
   try {
     parsedCandidates = JSON.parse(candidatesJson);
   } catch {
     throw new Error("候補データの解析に失敗しました。");
+  }
+
+  let parsedMeta: unknown = null;
+  if (generationMetaJson) {
+    try {
+      parsedMeta = JSON.parse(generationMetaJson);
+    } catch {
+      console.warn("generationMeta の解析に失敗しました");
+    }
   }
 
   if (!Array.isArray(parsedCandidates)) {
@@ -123,29 +119,34 @@ export async function saveLearningPointCandidates(formData: FormData) {
       !candidate.title?.trim() ||
       !candidate.learningPoint?.trim() ||
       !isDifficulty(candidate.difficulty) ||
-      !isQuestionStyle(candidate.questionStyle) ||
-      !Array.isArray(candidate.tags)
+      !Array.isArray(candidate.tags) ||
+      !Array.isArray(candidate.references)
     ) {
       throw new Error("候補データに不正な項目があります。");
     }
   }
 
-  const origin: LearningPointOrigin = sourceId ? "SOURCE_LLM" : "LLM";
-
   await prisma.$transaction(
     selectedCandidates.map((candidate) =>
       prisma.learningPoint.create({
         data: {
-          sourceId,
           topic,
           subtopic,
           title: candidate.title.trim(),
           learningPoint: candidate.learningPoint.trim(),
           rationale: candidate.rationale?.trim() || null,
           difficulty: candidate.difficulty,
-          questionStyle: candidate.questionStyle,
           tags: candidate.tags.map((tag) => tag.trim()).filter(Boolean),
-          origin,
+          origin: "PERPLEXITY" satisfies LearningPointOrigin,
+          generatedByModel,
+          generationMeta: parsedMeta ? (parsedMeta as any) : undefined,
+          lastGeneratedAt: new Date(),
+          references: {
+            create: candidate.references.map((url, index) => ({
+              url: url.trim(),
+              orderIndex: index,
+            })),
+          },
         },
       })
     )

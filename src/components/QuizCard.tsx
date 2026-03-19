@@ -15,7 +15,7 @@ type QuizCardProps = {
     explanation: string;
     imageAsset?: {
       fileUrl: string;
-      title: string;
+      id: string;
     } | null;
     learningPoint?: {
       topic: string;
@@ -259,7 +259,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
             <img
               src={question.imageAsset.fileUrl}
-              alt={question.imageAsset.title}
+              alt="画像"
               className="h-auto max-h-[28rem] w-full object-contain"
             />
           </div>

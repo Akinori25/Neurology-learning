@@ -1,19 +1,17 @@
-import { prisma } from "@/lib/prisma";
-import { openai } from "@/lib/openai";
+import { Difficulty } from "@prisma/client";
 
 export type LearningPointCandidate = {
   title: string;
   learningPoint: string;
   rationale: string;
   difficulty: "CORE" | "STANDARD" | "HARD" | "INSANE";
-  questionStyle: "FACT" | "CASE" | "DIFFERENTIAL" | "TREATMENT" | "IMAGE";
   tags: string[];
+  references: string[];
 };
 
 type GenerateLearningPointCandidatesInput = {
   topic: string;
   subtopic?: string;
-  sourceId?: string | null;
   keywords?: string;
   count?: number;
   targetDifficulty?: "CORE" | "STANDARD" | "HARD" | "INSANE";
@@ -39,14 +37,6 @@ function isValidDifficulty(
   return ["CORE", "STANDARD", "HARD", "INSANE"].includes(String(value));
 }
 
-function isValidQuestionStyle(
-  value: unknown
-): value is LearningPointCandidate["questionStyle"] {
-  return ["FACT", "CASE", "DIFFERENTIAL", "TREATMENT", "IMAGE"].includes(
-    String(value)
-  );
-}
-
 function sanitizeCandidate(
   candidate: LearningPointCandidate
 ): LearningPointCandidate {
@@ -55,12 +45,20 @@ function sanitizeCandidate(
     learningPoint: candidate.learningPoint.trim(),
     rationale: candidate.rationale.trim(),
     difficulty: candidate.difficulty,
-    questionStyle: candidate.questionStyle,
     tags: Array.isArray(candidate.tags)
       ? candidate.tags
           .map((tag) => String(tag).trim())
           .filter(Boolean)
           .slice(0, 10)
+      : [],
+    references: Array.isArray(candidate.references)
+      ? Array.from(
+          new Set(
+            candidate.references
+              .map((ref) => String(ref).trim())
+              .filter((ref) => ref.startsWith("http://") || ref.startsWith("https://"))
+          )
+        ).slice(0, 5)
       : [],
   };
 }
@@ -75,56 +73,24 @@ function isValidCandidate(candidate: unknown): candidate is LearningPointCandida
     typeof c.learningPoint === "string" &&
     typeof c.rationale === "string" &&
     isValidDifficulty(c.difficulty) &&
-    isValidQuestionStyle(c.questionStyle) &&
-    Array.isArray(c.tags)
+    Array.isArray(c.tags) &&
+    (Array.isArray(c.references) || c.references === undefined)
   );
 }
 
 export async function generateLearningPointCandidates({
   topic,
   subtopic,
-  sourceId,
   keywords,
   count = 5,
   targetDifficulty,
-}: GenerateLearningPointCandidatesInput): Promise<LearningPointCandidate[]> {
+}: GenerateLearningPointCandidatesInput): Promise<{
+  candidates: LearningPointCandidate[];
+  generatedByModel: string;
+  generationMeta: Record<string, unknown>;
+}> {
   const safeCount = normalizeCount(count);
   const normalizedKeywords = sanitizeKeywords(keywords);
-
-  let sourceContext = "資料なし";
-  let sourceTitle = "未設定";
-
-  if (sourceId) {
-    const source = await prisma.source.findUnique({
-      where: { id: sourceId },
-      include: {
-        chunks: {
-          orderBy: { chunkIndex: "asc" },
-          take: 8,
-        },
-      },
-    });
-
-    if (source) {
-      sourceTitle = source.title;
-      sourceContext =
-        source.chunks.length > 0
-          ? source.chunks
-              .map((chunk, i) => {
-                return [
-                  `[#${i + 1}] ${source.title}`,
-                  chunk.chapter ? `章: ${chunk.chapter}` : null,
-                  chunk.pageStart ? `ページ: ${chunk.pageStart}` : null,
-                  chunk.pageEnd ? `- ${chunk.pageEnd}` : null,
-                  chunk.text,
-                ]
-                  .filter(Boolean)
-                  .join("\n");
-              })
-              .join("\n\n")
-          : "資料は指定されていますが、参照可能なチャンクはありません。";
-    }
-  }
 
   const difficultyInstruction = targetDifficulty
     ? `生成する候補の難易度は ${targetDifficulty} に統一してください。`
@@ -132,7 +98,7 @@ export async function generateLearningPointCandidates({
 
   const systemPrompt = `
 あなたは神経内科専門医試験の編集委員です。
-与えられた分野・資料から、専門医試験で問う価値のある learning point 候補を作成してください。
+与えられた分野から、専門医試験で問う価値のある learning point 候補を作成してください。
 
 【基本方針】
 - 日本語で出力する
@@ -140,7 +106,6 @@ export async function generateLearningPointCandidates({
 - 実際に4択問題へ落とし込みやすい具体的な粒度にする
 - 候補同士は重複しないようにする
 - 広すぎる総論や曖昧な知識項目は避ける
-- 参考資料がある場合は内容に反しないこと
 - 不確かな情報は推測で補わない
 - 出力はJSONのみとする
 
@@ -156,22 +121,6 @@ HARD:
 
 INSANE:
 高度で細部まで問う知識
-
-【questionStyle の基準】
-FACT:
-単一知識を問う問題
-
-CASE:
-症例文から診断・判断を行う問題
-
-DIFFERENTIAL:
-鑑別診断の比較を問う問題
-
-TREATMENT:
-治療選択・適応・禁忌を問う問題
-
-IMAGE:
-画像・波形・病理・検査所見の解釈を問う問題
 
 【各フィールドの定義】
 title:
@@ -192,7 +141,6 @@ tags:
 - 曖昧な知識
 - 4択問題に落とし込みにくい主張
 - 候補間で主語だけ異なる重複論点
-- 参考資料と整合しない内容
 
 【多様性ルール】
 候補間で論点が偏らないようにする。
@@ -218,17 +166,11 @@ ${subtopic ?? "未設定"}
 keywords:
 ${normalizedKeywords || "なし"}
 
-source title:
-${sourceTitle ?? "なし"}
-
 candidate count:
 ${safeCount}
 
 【難易度指定】
 ${difficultyInstruction}
-
-【参考資料】
-${sourceContext || "なし"}
 
 【タスク】
 上記情報をもとに、
@@ -241,7 +183,8 @@ ${safeCount}件作成してください。
 - learningPoint は問題作成時の核知識として使える密度にする
 - rationale は受験者の理解差を測れる理由を書く
 - tags は簡潔な語を付与する
-- 出力前に、候補間の重複・粒度・資料との整合性を自己点検する
+- 出力前に、候補間の重複・粒度を自己点検する
+- 可能であれば、その知識を裏付ける信頼できるURLを references として2〜3件含める（なければ空配列でよい）
 
 出力形式:
 {
@@ -251,31 +194,47 @@ ${safeCount}件作成してください。
       "learningPoint": "",
       "rationale": "",
       "difficulty": "CORE | STANDARD | HARD | INSANE",
-      "questionStyle": "FACT | CASE | DIFFERENTIAL | TREATMENT | IMAGE",
-      "tags": ["", ""]
+      "tags": ["", ""],
+      "references": ["url1", "url2"]
     }
   ]
 }
 
-必ずJSONのみ出力する。
+必ず上記のJSON形式のみで出力すること。Markdownのバッククォート等の余分な文字は含めないでください。
 `;
 
-  const response = await openai.responses.create({
-    model: "gpt-5-mini",
-    input: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
+  const model = process.env.PERPLEXITY_MODEL ?? "sonar-pro";
+
+  const response = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
   });
 
-  const rawText =
-    typeof response.output_text === "string" ? response.output_text : "";
+  if (!response.ok) {
+    throw new Error(`Perplexity API error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  let rawText = data.choices?.[0]?.message?.content || "";
+
+  // Remove markdown code blocks if present
+  rawText = rawText.replace(/^\s*```json/im, "").replace(/```\s*$/m, "").trim();
 
   let parsed: unknown;
-
   try {
     parsed = JSON.parse(rawText);
   } catch {
+    console.error("Failed to parse JSON:", rawText);
     throw new Error("LLMの出力がJSONとして解釈できませんでした。");
   }
 
@@ -299,5 +258,20 @@ ${safeCount}件作成してください。
     throw new Error("有効な learning point 候補を取得できませんでした。");
   }
 
-  return validCandidates.slice(0, safeCount);
+  const generationMeta = {
+    model,
+    requestedCount: safeCount,
+    returnedCount: validCandidates.length,
+    topic,
+    subtopic,
+    keywords,
+    targetDifficulty,
+    generatedAt: new Date().toISOString(),
+  };
+
+  return {
+    candidates: validCandidates.slice(0, safeCount),
+    generatedByModel: model,
+    generationMeta,
+  };
 }

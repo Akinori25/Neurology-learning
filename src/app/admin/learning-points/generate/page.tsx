@@ -42,10 +42,6 @@ export default async function GenerateLearningPointsPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
-  const sources = await prisma.source.findMany({
-    orderBy: { title: "asc" },
-  });
-
   const topic =
     typeof resolvedSearchParams.topic === "string"
       ? resolvedSearchParams.topic
@@ -53,10 +49,6 @@ export default async function GenerateLearningPointsPage({
   const subtopic =
     typeof resolvedSearchParams.subtopic === "string"
       ? resolvedSearchParams.subtopic
-      : "";
-  const sourceId =
-    typeof resolvedSearchParams.sourceId === "string"
-      ? resolvedSearchParams.sourceId
       : "";
   const keywords =
     typeof resolvedSearchParams.keywords === "string"
@@ -79,7 +71,6 @@ export default async function GenerateLearningPointsPage({
     const formData = new FormData();
     formData.set("topic", topic);
     formData.set("subtopic", subtopic);
-    formData.set("sourceId", sourceId);
     formData.set("keywords", keywords);
     formData.set("count", count);
     formData.set("targetDifficulty", targetDifficulty);
@@ -135,22 +126,6 @@ export default async function GenerateLearningPointsPage({
                 className="w-full rounded-xl border px-4 py-3"
                 placeholder="例: CIDP"
               />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium">資料</label>
-              <select
-                name="sourceId"
-                defaultValue={sourceId}
-                className="w-full rounded-xl border px-4 py-3"
-              >
-                <option value="">未選択</option>
-                {sources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.title}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>
@@ -210,7 +185,6 @@ export default async function GenerateLearningPointsPage({
         <LearningPointCandidatesForm
           topic={result.topic}
           subtopic={result.subtopic}
-          sourceId={result.sourceId ?? ""}
           candidates={result.candidates}
         />
       )}

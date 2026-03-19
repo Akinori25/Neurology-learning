@@ -20,22 +20,7 @@ function formatDifficulty(value: string) {
   }
 }
 
-function formatQuestionStyle(value: string) {
-  switch (value) {
-    case "FACT":
-      return "知識";
-    case "CASE":
-      return "症例";
-    case "DIFFERENTIAL":
-      return "鑑別";
-    case "TREATMENT":
-      return "治療";
-    case "IMAGE":
-      return "画像";
-    default:
-      return value;
-  }
-}
+
 
 function formatOrigin(value: string) {
   switch (value) {
@@ -72,10 +57,9 @@ export default async function LearningPointDetailPage({
   const learningPoint = await prisma.learningPoint.findUnique({
     where: { id },
     include: {
-      source: true,
-      imageLinks: {
-        include: {
-          imageAsset: true,
+      references: {
+        orderBy: {
+          orderIndex: "asc",
         },
       },
       drafts: {
@@ -132,9 +116,7 @@ export default async function LearningPointDetailPage({
         <div className="space-y-6">
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
-                {formatQuestionStyle(learningPoint.questionStyle)}
-              </span>
+
               <span className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-700">
                 {formatDifficulty(learningPoint.difficulty)}
               </span>
@@ -178,7 +160,7 @@ export default async function LearningPointDetailPage({
                       >
                         {draft.isPublished ? "公開中" : "下書き"}
                       </span>
-                      {draft.hasImage && (
+                      {draft.imageAsset && (
                         <span className="rounded-full border bg-blue-50 px-2 py-1 text-xs text-blue-700">
                           画像問題
                         </span>
@@ -232,10 +214,7 @@ export default async function LearningPointDetailPage({
                   ? learningPoint.tags.join(", ")
                   : "なし"}
               </p>
-              <p>
-                <span className="font-medium">資料:</span>{" "}
-                {learningPoint.source?.title ?? "未設定"}
-              </p>
+
               <p>
                 <span className="font-medium">作成方法:</span>{" "}
                 {formatOrigin(learningPoint.origin)}
@@ -248,29 +227,24 @@ export default async function LearningPointDetailPage({
           </section>
 
           <section className="rounded-2xl border bg-white p-5 shadow-sm">
-            <h3 className="mb-3 font-semibold">候補画像</h3>
-
-            {learningPoint.imageLinks.length === 0 ? (
-              <p className="text-sm text-gray-500">候補画像はありません。</p>
+            <h3 className="mb-3 font-semibold">参考資料</h3>
+            {learningPoint.references.length === 0 ? (
+              <p className="text-sm text-gray-500">参考資料のURLはありません。</p>
             ) : (
-              <div className="space-y-4">
-                {learningPoint.imageLinks.map((link) => (
-                  <div key={link.id} className="rounded-xl border p-4">
-                    <p className="font-medium">{link.imageAsset.title}</p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {link.imageAsset.modality} / {link.imageAsset.topic}
-                      {link.imageAsset.subtopic
-                        ? ` / ${link.imageAsset.subtopic}`
-                        : ""}
-                    </p>
-                    {link.imageAsset.findings && (
-                      <p className="mt-3 text-sm leading-7">
-                        {link.imageAsset.findings}
-                      </p>
-                    )}
-                  </div>
+              <ul className="space-y-2">
+                {learningPoint.references.map((ref) => (
+                  <li key={ref.id}>
+                    <a
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline break-all"
+                    >
+                      {ref.url}
+                    </a>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </section>
         </div>
