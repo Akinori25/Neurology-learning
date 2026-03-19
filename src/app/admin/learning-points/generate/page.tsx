@@ -62,6 +62,10 @@ export default async function GenerateLearningPointsPage({
     typeof resolvedSearchParams.targetDifficulty === "string"
       ? resolvedSearchParams.targetDifficulty
       : "";
+  const generatorType =
+    typeof resolvedSearchParams.generatorType === "string"
+      ? resolvedSearchParams.generatorType
+      : "perplexity";
 
   let result:
     | Awaited<ReturnType<typeof generateLearningPointCandidatesAction>>
@@ -74,6 +78,7 @@ export default async function GenerateLearningPointsPage({
     formData.set("keywords", keywords);
     formData.set("count", count);
     formData.set("targetDifficulty", targetDifficulty);
+    formData.set("generatorType", generatorType);
 
     try {
       result = await generateLearningPointCandidatesAction(formData);
