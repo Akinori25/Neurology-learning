@@ -21,6 +21,12 @@ type QuizCardProps = {
       topic: string;
       subtopic: string | null;
       difficulty?: string;
+      origin?: "MANUAL" | "PERPLEXITY" | "LLM" | null;
+      references?: {
+        id: string;
+        url: string;
+        orderIndex?: number | null;
+      }[];
     } | null;
     isGood?: boolean;
     raiseHands?: {
@@ -45,6 +51,19 @@ function difficultyClass(difficulty?: string) {
       return "bg-rose-50 text-rose-700 ring-rose-200";
     default:
       return "bg-slate-100 text-slate-700 ring-slate-200";
+  }
+}
+
+function originLabel(origin?: string | null) {
+  switch (origin) {
+    case "PERPLEXITY":
+      return "Perplexity生成";
+    case "LLM":
+      return "LLM生成";
+    case "MANUAL":
+      return "手動作成";
+    default:
+      return "不明";
   }
 }
 
@@ -84,18 +103,22 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
       { key: "C", text: question.choiceC },
       { key: "D", text: question.choiceD },
     ];
+
     let hash = 0;
     for (let i = 0; i < question.id.length; i++) {
-      hash = Math.imul(31, hash) + question.id.charCodeAt(i) | 0;
+      hash = (Math.imul(31, hash) + question.id.charCodeAt(i)) | 0;
     }
+
     const rand = () => {
-      hash = Math.imul(hash, 1664525) + 1013904223 | 0;
+      hash = (Math.imul(hash, 1664525) + 1013904223) | 0;
       return (hash >>> 0) / 4294967296;
     };
+
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+
     return arr;
   }, [
     question.id,
@@ -104,6 +127,12 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
     question.choiceC,
     question.choiceD,
   ]);
+
+  const sortedReferences = useMemo(() => {
+    return [...(question.learningPoint?.references ?? [])].sort(
+      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+    );
+  }, [question.learningPoint?.references]);
 
   const handleSelect = (key: string) => {
     if (revealed) return;
@@ -392,10 +421,47 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
 
             <div className="mt-3">
               <p className="mb-1 text-sm font-semibold text-slate-900">解説</p>
-              <p className="text-sm leading-7 text-slate-700 sm:text-[15px] whitespace-pre-line">
+              <p className="whitespace-pre-line text-sm leading-7 text-slate-700 sm:text-[15px]">
                 {feedback.explanation}
               </p>
             </div>
+
+            {question.learningPoint && (
+              <div className="mt-4 border-t border-black/10 pt-4">
+                <p className="mb-2 text-sm font-semibold text-slate-900">
+                  Learning point情報
+                </p>
+
+                <div className="space-y-2 text-sm text-slate-700">
+                  <p>
+                    <span className="font-medium text-slate-900">生成方法: </span>
+                    {originLabel(question.learningPoint.origin)}
+                  </p>
+
+                  <div>
+                    <p className="font-medium text-slate-900">Reference</p>
+                    {sortedReferences.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
+                        {sortedReferences.map((ref) => (
+                          <li key={ref.id} className="break-all">
+                            <a
+                              href={ref.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-700 underline underline-offset-2 hover:text-sky-800"
+                            >
+                              {ref.url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-slate-500">reference なし</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {savedComments.length > 0 && (
               <div className="mt-4 border-t border-black/10 pt-4">
@@ -408,7 +474,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
                       key={item.id}
                       className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2"
                     >
-                      <p className="text-sm leading-6 text-slate-700 whitespace-pre-line">
+                      <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
                         {item.comment}
                       </p>
                     </div>

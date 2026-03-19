@@ -88,6 +88,17 @@ const questionSelect = {
       topic: true,
       subtopic: true,
       difficulty: true,
+      origin: true,
+      references: {
+        select: {
+          id: true,
+          url: true,
+          orderIndex: true,
+        },
+        orderBy: {
+          orderIndex: "asc",
+        },
+      },
     },
   },
 } satisfies Prisma.QuestionDraftSelect;
