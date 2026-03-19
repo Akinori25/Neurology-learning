@@ -102,6 +102,8 @@ export async function generateLearningPointCandidates({
 
 【基本方針】
 - 日本語で出力する
+- 検索・知識参照は英語ベースで行う
+- references は英語論文・英語レビュー・英語ガイドラインを優先する
 - 1候補につき1つの明確な論点のみ扱う
 - 実際に4択問題へ落とし込みやすい具体的な粒度にする
 - 候補同士は重複しないようにする
@@ -178,6 +180,7 @@ ${difficultyInstruction}
 ${safeCount}件作成してください。
 
 追加ルール:
+- keywords は英語ベースで解釈すること
 - 候補ごとに論点を明確に変える
 - 同一疾患でも観点（病態・検査・鑑別など）を変える
 - learningPoint は問題作成時の核知識として使える密度にする
