@@ -181,6 +181,12 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
 
   const correctAnswer = feedback?.correctAnswer ?? question.correctAnswer;
 
+  const getDisplayLabel = (key: string) => {
+    const index = choices.findIndex((c) => c.key === key);
+    if (index === -1) return key;
+    return ["A", "B", "C", "D"][index];
+  };
+
   const getButtonClass = (key: string) => {
     const base =
       "w-full rounded-2xl border px-4 py-4 text-left transition-all duration-150 disabled:cursor-not-allowed sm:px-5 sm:py-4";
@@ -284,24 +290,27 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
         )}
 
         <div className="mt-6 space-y-3">
-          {choices.map((choice) => (
-            <button
-              key={choice.key}
-              type="button"
-              onClick={() => handleSelect(choice.key)}
-              disabled={revealed}
-              className={getButtonClass(choice.key)}
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
-                  {choice.key}
-                </span>
-                <span className="pt-1 text-sm leading-6 text-slate-800 sm:text-base">
-                  {choice.text}
-                </span>
-              </div>
-            </button>
-          ))}
+          {choices.map((choice, idx) => {
+            const displayLabel = ["A", "B", "C", "D"][idx] || choice.key;
+            return (
+              <button
+                key={choice.key}
+                type="button"
+                onClick={() => handleSelect(choice.key)}
+                disabled={revealed}
+                className={getButtonClass(choice.key)}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
+                    {displayLabel}
+                  </span>
+                  <span className="pt-1 text-sm leading-6 text-slate-800 sm:text-base">
+                    {choice.text}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {!revealed && (
@@ -377,7 +386,7 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
               </span>
 
               <span className="text-sm text-slate-700">
-                正答: {feedback.correctAnswer}
+                正答: {getDisplayLabel(feedback.correctAnswer)}
               </span>
             </div>
 
