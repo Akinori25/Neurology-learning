@@ -151,6 +151,12 @@ function formatQuestion(question: SelectedQuestion | null) {
           topic: question.learningPoint.topic,
           subtopic: question.learningPoint.subtopic,
           difficulty: question.learningPoint.difficulty,
+          origin: question.learningPoint.origin,
+          references: question.learningPoint.references.map((ref) => ({
+            id: ref.id,
+            url: ref.url,
+            orderIndex: ref.orderIndex,
+          })),
         }
       : null,
     isGood: false,
