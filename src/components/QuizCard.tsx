@@ -77,15 +77,33 @@ export default function QuizCard({ question, index, total }: QuizCardProps) {
     setSavedComments(question.raiseHands ?? []);
   }, [question.id, question.isGood, question.raiseHands]);
 
-  const choices = useMemo(
-    () => [
+  const choices = useMemo(() => {
+    const arr = [
       { key: "A", text: question.choiceA },
       { key: "B", text: question.choiceB },
       { key: "C", text: question.choiceC },
       { key: "D", text: question.choiceD },
-    ],
-    [question.choiceA, question.choiceB, question.choiceC, question.choiceD]
-  );
+    ];
+    let hash = 0;
+    for (let i = 0; i < question.id.length; i++) {
+      hash = Math.imul(31, hash) + question.id.charCodeAt(i) | 0;
+    }
+    const rand = () => {
+      hash = Math.imul(hash, 1664525) + 1013904223 | 0;
+      return (hash >>> 0) / 4294967296;
+    };
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [
+    question.id,
+    question.choiceA,
+    question.choiceB,
+    question.choiceC,
+    question.choiceD,
+  ]);
 
   const handleSelect = (key: string) => {
     if (revealed) return;

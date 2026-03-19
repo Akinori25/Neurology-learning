@@ -19,12 +19,14 @@ function formatDifficulty(value: string) {
 }
 
 type Props = {
+  generatorType: string;
   topic: string;
   subtopic: string;
   candidates: LearningPointCandidate[];
 };
 
 export default function LearningPointCandidatesForm({
+  generatorType,
   topic,
   subtopic,
   candidates,
@@ -91,6 +93,7 @@ export default function LearningPointCandidatesForm({
         {selectedIndexes.length} / {candidates.length} 件を選択中
       </p>
 
+      <input type="hidden" name="generatorType" value={generatorType} />
       <input type="hidden" name="topic" value={topic} />
       <input type="hidden" name="subtopic" value={subtopic} />
       <input type="hidden" name="candidatesJson" value={candidatesJson} />

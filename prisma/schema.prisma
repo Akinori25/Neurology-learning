@@ -18,6 +18,7 @@ enum Difficulty {
 enum LearningPointOrigin {
   MANUAL
   PERPLEXITY
+  LLM
 }
 
 enum UserRole {

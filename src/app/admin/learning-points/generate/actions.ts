@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { generateLearningPointCandidates } from "@/lib/learning-point-generator";
+import { generateLearningPointCandidatesWithLLM } from "@/lib/learning-point-generator-llm";
 import { redirect } from "next/navigation";
 import { Difficulty, LearningPointOrigin } from "@prisma/client";
 
@@ -24,6 +25,7 @@ export type LearningPointCandidate = {
 };
 
 export async function generateLearningPointCandidatesAction(formData: FormData) {
+  const generatorType = formData.get("generatorType") as string || "perplexity";
   const topic = (formData.get("topic") as string)?.trim();
   const subtopic = (formData.get("subtopic") as string)?.trim() || "";
   const keywords = (formData.get("keywords") as string)?.trim() || "";
@@ -40,15 +42,24 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
     ? targetDifficultyRaw
     : undefined;
 
-  const result = await generateLearningPointCandidates({
-    topic,
-    subtopic,
-    keywords,
-    count,
-    targetDifficulty,
-  });
+  const result = generatorType === "llm"
+    ? await generateLearningPointCandidatesWithLLM({
+        topic,
+        subtopic,
+        keywords,
+        count,
+        targetDifficulty,
+      })
+    : await generateLearningPointCandidates({
+        topic,
+        subtopic,
+        keywords,
+        count,
+        targetDifficulty,
+      });
 
   return {
+    generatorType,
     topic,
     subtopic,
     keywords,
@@ -61,6 +72,7 @@ export async function generateLearningPointCandidatesAction(formData: FormData) 
 }
 
 export async function saveLearningPointCandidates(formData: FormData) {
+  const generatorType = (formData.get("generatorType") as string)?.trim() || "perplexity";
   const topic = (formData.get("topic") as string)?.trim();
   const subtopic = (formData.get("subtopic") as string)?.trim() || null;
   const candidatesJson = (formData.get("candidatesJson") as string)?.trim();
@@ -137,7 +149,7 @@ export async function saveLearningPointCandidates(formData: FormData) {
           rationale: candidate.rationale?.trim() || null,
           difficulty: candidate.difficulty,
           tags: candidate.tags.map((tag) => tag.trim()).filter(Boolean),
-          origin: "PERPLEXITY" satisfies LearningPointOrigin,
+          origin: (generatorType === "llm" ? "LLM" : "PERPLEXITY") satisfies LearningPointOrigin,
           generatedByModel,
           generationMeta: parsedMeta ? (parsedMeta as any) : undefined,
           lastGeneratedAt: new Date(),

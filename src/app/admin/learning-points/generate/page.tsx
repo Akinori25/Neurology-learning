@@ -170,12 +170,22 @@ export default async function GenerateLearningPointsPage({
             </div>
           </div>
 
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap gap-4">
             <button
               type="submit"
+              name="generatorType"
+              value="perplexity"
               className="rounded-xl border border-blue-300 bg-blue-50 px-5 py-3 text-sm text-blue-700 hover:bg-blue-100"
             >
-              候補を生成
+              Perplexityで作成
+            </button>
+            <button
+              type="submit"
+              name="generatorType"
+              value="llm"
+              className="rounded-xl border border-purple-300 bg-purple-50 px-5 py-3 text-sm text-purple-700 hover:bg-purple-100"
+            >
+              LLMで作成
             </button>
           </div>
         </section>
@@ -183,6 +193,7 @@ export default async function GenerateLearningPointsPage({
 
       {result && (
         <LearningPointCandidatesForm
+          generatorType={result.generatorType}
           topic={result.topic}
           subtopic={result.subtopic}
           candidates={result.candidates}
