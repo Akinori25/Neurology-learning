@@ -35,12 +35,22 @@ export default function Home() {
         </Link>
 
         <Link
-          href="/quiz?mode=topic"
+          href="/question-sets"
           className="rounded-xl border p-5 hover:bg-gray-50 transition"
         >
-          <h2 className="font-semibold">トピック別演習</h2>
+          <h2 className="font-semibold">問題集</h2>
           <p className="text-sm text-gray-500">
-            神経筋 / 脳血管 / 認知症など
+            テーマごとにまとめられた問題セット
+          </p>
+        </Link>
+        
+        <Link
+          href="/exam"
+          className="rounded-xl border p-5 hover:bg-gray-50 transition md:col-span-2"
+        >
+          <h2 className="font-semibold text-emerald-700">模擬試験</h2>
+          <p className="text-sm text-gray-500">
+            本番を想定した時間制限付きの模擬試験
           </p>
         </Link>
 

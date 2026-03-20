@@ -28,33 +28,36 @@ enum UserRole {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?  @unique
-  role      UserRole @default(LEARNER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  loginId      String   @unique
+  passwordHash String
+  role         UserRole @default(LEARNER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   learningPoints LearningPoint[] @relation("LearningPointCreator")
   questionDrafts QuestionDraft[] @relation("QuestionDraftCreator")
   questionSets   QuestionSet[]   @relation("QuestionSetCreator")
+  exams          Exam[]          @relation("ExamCreator")
 
   attempts      UserAttempt[]
+  examAttempts  ExamAttempt[]
   goodReactions DraftGood[]
   raiseHands    DraftRaiseHand[]
 }
 
 model LearningPoint {
-  id              String              @id @default(cuid())
-  createdById     String?
-  topic           String
-  subtopic        String?
-  title           String
-  learningPoint   String              @db.Text
-  rationale       String?             @db.Text
-  difficulty      Difficulty
-  tags            String[]
-  origin          LearningPointOrigin @default(PERPLEXITY)
+  id            String              @id @default(cuid())
+  createdById   String?
+  topic         String
+  subtopic      String?
+  title         String
+  learningPoint String              @db.Text
+  rationale     String?             @db.Text
+  difficulty    Difficulty
+  tags          String[]
+  origin        LearningPointOrigin @default(PERPLEXITY)
 
   generatedByModel String?
   generationMeta   Json?
@@ -93,7 +96,7 @@ model LearningPointReference {
 }
 
 model ImageAsset {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   fileUrl      String
   thumbnailUrl String?
 
@@ -143,6 +146,7 @@ model QuestionDraft {
   goods      DraftGood[]
   raiseHands DraftRaiseHand[]
   setItems   QuestionSetItem[]
+  examItems  ExamItem[]
 
   @@index([learningPointId])
   @@index([imageAssetId])
@@ -186,17 +190,20 @@ model DraftRaiseHand {
 }
 
 model QuestionSet {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
-  description String?  @db.Text
+  description String?   @db.Text
   createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  createdBy User?           @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy User?             @relation("QuestionSetCreator", fields: [createdById], references: [id], onDelete: SetNull)
   items     QuestionSetItem[]
 
   @@index([createdById])
+  @@index([isPublished])
 }
 
 model QuestionSetItem {
@@ -229,4 +236,60 @@ model UserAttempt {
   @@index([userId])
   @@index([questionDraftId])
   @@index([answeredAt])
+}
+
+model Exam {
+  id                     String    @id @default(cuid())
+  title                  String
+  description            String?   @db.Text
+  predictedMeanScore     Float?
+  predictedStdDev        Float?
+  passDeviationThreshold Float?
+  isPublished            Boolean   @default(false)
+  publishedAt            DateTime?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  items    ExamItem[]
+  attempts ExamAttempt[]
+
+  @@index([createdById])
+  @@index([isPublished])
+}
+
+model ExamItem {
+  id              String   @id @default(cuid())
+  examId          String
+  questionDraftId String
+  orderIndex      Int
+  createdAt       DateTime @default(now())
+
+  exam  Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  draft QuestionDraft @relation(fields: [questionDraftId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionDraftId])
+  @@unique([examId, orderIndex])
+  @@index([examId])
+  @@index([questionDraftId])
+}
+
+model ExamAttempt {
+  id             String   @id @default(cuid())
+  examId         String
+  userId         String
+  score          Int
+  totalQuestions Int
+  deviation      Float?
+  passed         Boolean?
+  completedAt    DateTime @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@index([userId])
 }

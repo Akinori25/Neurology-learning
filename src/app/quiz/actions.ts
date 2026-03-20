@@ -12,10 +12,10 @@ type SaveRaiseHandInput = {
 };
 
 async function getOrCreateGuestUser() {
-  const guestEmail = "guest@example.com";
+  const guestLoginId = "guest";
 
   const existing = await prisma.user.findUnique({
-    where: { email: guestEmail },
+    where: { loginId: guestLoginId },
   });
 
   if (existing) {
@@ -25,7 +25,8 @@ async function getOrCreateGuestUser() {
   return prisma.user.create({
     data: {
       name: "Guest User",
-      email: guestEmail,
+      loginId: guestLoginId,
+      passwordHash: "dummy",
       role: "LEARNER",
     },
   });
