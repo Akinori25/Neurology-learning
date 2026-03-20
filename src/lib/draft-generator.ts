@@ -168,18 +168,7 @@ export async function generateDraftWithLLM(
 
   const now = new Date();
 
-  if (lp.lastGeneratedAt) {
-    const diffMs = now.getTime() - new Date(lp.lastGeneratedAt).getTime();
-    const diffSeconds = diffMs / 1000;
 
-    if (diffSeconds < 60) {
-      throw new Error(
-        `この論点では直近${Math.ceil(
-          diffSeconds
-        )}秒前に生成されています。少し待ってから再実行してください。`
-      );
-    }
-  }
 
   const effectiveDifficulty = difficultyOverride ?? lp.difficulty;
 
