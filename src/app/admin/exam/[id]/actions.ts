@@ -13,16 +13,35 @@ export async function togglePublishExam(examId: string, isPublished: boolean) {
   revalidatePath("/exam");
 }
 
-export async function addDraftToExam(examId: string, draftId: string) {
-  const maxItem = await prisma.examItem.findFirst({
-    where: { examId },
-    orderBy: { orderIndex: "desc" },
+export async function addManyDraftsToExam(examId: string, draftIds: string[]) {
+  await prisma.$transaction(async (tx) => {
+    const maxItem = await tx.examItem.findFirst({
+      where: { examId },
+      orderBy: { orderIndex: "desc" },
+    });
+    let nextIndex = maxItem ? maxItem.orderIndex + 1 : 0;
+    
+    const existing = await tx.examItem.findMany({
+      where: { examId, questionDraftId: { in: draftIds } },
+      select: { questionDraftId: true }
+    });
+    const existingIds = new Set(existing.map(e => e.questionDraftId));
+    
+    const newDraftIds = draftIds.filter(id => !existingIds.has(id));
+    if (newDraftIds.length === 0) return;
+
+    for (const draftId of newDraftIds) {
+      await tx.examItem.create({
+        data: { examId, questionDraftId: draftId, orderIndex: nextIndex++ },
+      });
+    }
+
+    await tx.questionDraft.updateMany({
+      where: { id: { in: newDraftIds } },
+      data: { isAvailableInQuiz: false },
+    });
   });
-  const nextIndex = maxItem ? maxItem.orderIndex + 1 : 0;
-  
-  await prisma.examItem.create({
-    data: { examId, questionDraftId: draftId, orderIndex: nextIndex },
-  });
+
   revalidatePath(`/admin/exam/${examId}`);
 }
 
@@ -102,6 +121,7 @@ export async function updateExamMetadata(examId: string, formData: FormData) {
   const mean = parseFloat(formData.get("predictedMeanScore") as string);
   const stdDev = parseFloat(formData.get("predictedStdDev") as string);
   const passThreshold = parseFloat(formData.get("passDeviationThreshold") as string);
+  const seconds = parseInt(formData.get("secondsPerQuestion") as string, 10);
 
   await prisma.exam.update({
     where: { id: examId },
@@ -109,6 +129,7 @@ export async function updateExamMetadata(examId: string, formData: FormData) {
       predictedMeanScore: isNaN(mean) ? null : mean,
       predictedStdDev: isNaN(stdDev) ? null : stdDev,
       passDeviationThreshold: isNaN(passThreshold) ? null : passThreshold,
+      secondsPerQuestion: isNaN(seconds) ? null : seconds,
     },
   });
   revalidatePath(`/admin/exam/${examId}`);

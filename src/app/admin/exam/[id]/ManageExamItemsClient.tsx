@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { searchPublishedDrafts } from "../../question-sets/[id]/actions";
-import { addDraftToExam, removeDraftFromExam, togglePublishExam, calculateExamStats, updateExamMetadata } from "./actions";
+import { addManyDraftsToExam, removeDraftFromExam, togglePublishExam, calculateExamStats, updateExamMetadata } from "./actions";
 
 type UIProps = {
   exam: any;
@@ -12,14 +12,35 @@ type UIProps = {
 export default function ManageExamItemsClient({ exam, items }: UIProps) {
   const [isPending, startTransition] = useTransition();
   const [topicFilter, setTopicFilter] = useState("");
+  const [subtopicFilter, setSubtopicFilter] = useState("");
+  const [difficultyFilter, setDifficultyFilter] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
 
   const handleSearch = async () => {
     setIsSearching(true);
-    const results = await searchPublishedDrafts(topicFilter);
+    const results = await searchPublishedDrafts(topicFilter, subtopicFilter, difficultyFilter);
     setSearchResults(results);
+    setSelectedDraftIds(new Set());
     setIsSearching(false);
+  };
+
+  const handleBulkAdd = () => {
+    if (selectedDraftIds.size === 0) return;
+    startTransition(async () => {
+      await addManyDraftsToExam(exam.id, Array.from(selectedDraftIds));
+      setSelectedDraftIds(new Set());
+    });
+  };
+
+  const toggleDraftSelection = (draftId: string) => {
+    setSelectedDraftIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(draftId)) newSet.delete(draftId);
+      else newSet.add(draftId);
+      return newSet;
+    });
   };
 
   const handleAutoEstimate = () => {
@@ -115,15 +136,28 @@ export default function ManageExamItemsClient({ exam, items }: UIProps) {
                 />
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-700 block mb-1">合格偏差値ライン</label>
-              <input
-                name="passDeviationThreshold"
-                type="number"
-                step="0.1"
-                defaultValue={exam.passDeviationThreshold ?? 50}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-slate-700 block mb-1">合格偏差値ライン</label>
+                <input
+                  name="passDeviationThreshold"
+                  type="number"
+                  step="0.1"
+                  defaultValue={exam.passDeviationThreshold ?? 50}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700 block mb-1">1問あたりの遷移時間(秒)</label>
+                <input
+                  name="secondsPerQuestion"
+                  type="number"
+                  step="1"
+                  placeholder="未設定時 10"
+                  defaultValue={exam.secondsPerQuestion ?? ""}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                />
+              </div>
             </div>
             <button
               type="submit"
@@ -138,47 +172,79 @@ export default function ManageExamItemsClient({ exam, items }: UIProps) {
 
       <section className="space-y-6">
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">問題を追加</h2>
-          
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              placeholder="Topicで絞り込み (必須)"
-              value={topicFilter}
-              onChange={(e) => setTopicFilter(e.target.value)}
-              className="flex-1 rounded-xl border px-3 py-2 text-sm"
-            />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">問題を追加</h2>
             <button
-              onClick={handleSearch}
-              disabled={isSearching || !topicFilter.trim()}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+              onClick={handleBulkAdd}
+              disabled={isPending || selectedDraftIds.size === 0}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
             >
-              検索
+              {selectedDraftIds.size} 件をまとめて追加
             </button>
           </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Topic"
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+              className="rounded-xl border px-3 py-2 text-sm"
+            />
+            <input
+              type="text"
+              placeholder="Subtopic"
+              value={subtopicFilter}
+              onChange={(e) => setSubtopicFilter(e.target.value)}
+              className="rounded-xl border px-3 py-2 text-sm"
+            />
+            <select
+              value={difficultyFilter}
+              onChange={(e) => setDifficultyFilter(e.target.value)}
+              className="rounded-xl border px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Difficulty (すべて)</option>
+              <option value="CORE">CORE</option>
+              <option value="STANDARD">STANDARD</option>
+              <option value="HARD">HARD</option>
+              <option value="INSANE">INSANE</option>
+            </select>
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={isSearching}
+            className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50 mb-6"
+          >
+            検索する
+          </button>
 
           <div className="space-y-3 max-h-[800px] overflow-y-auto pr-2">
             {searchResults.map((draft) => {
               const isAdded = existingDraftIds.has(draft.id);
               return (
-                <div key={draft.id} className={`rounded-xl border p-4 ${isAdded ? 'bg-slate-50 opacity-60' : ''}`}>
-                  <p className="text-sm font-medium line-clamp-2">{draft.stem}</p>
-                  <p className="text-xs text-slate-500 mt-1 mb-3">
-                    {draft.learningPoint.topic} {draft.learningPoint.subtopic && `> ${draft.learningPoint.subtopic}`}
-                  </p>
-                  <button
-                    onClick={() => startTransition(() => addDraftToExam(exam.id, draft.id))}
-                    disabled={isPending || isAdded}
-                    className={`text-xs px-3 py-1.5 rounded-lg ${
-                      isAdded ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                    }`}
-                  >
-                    {isAdded ? "追加済み" : "模試に追加"}
-                  </button>
+                <div key={draft.id} className={`rounded-xl border p-4 ${isAdded ? 'bg-slate-50 opacity-60' : ''} flex gap-4 items-start`}>
+                  <div className="pt-1">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 cursor-pointer"
+                      disabled={isAdded}
+                      checked={selectedDraftIds.has(draft.id)}
+                      onChange={() => toggleDraftSelection(draft.id)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium line-clamp-2 cursor-pointer" onClick={() => !isAdded && toggleDraftSelection(draft.id)}>{draft.stem}</p>
+                    <p className="text-xs text-slate-500 mt-1 mb-1">
+                      {draft.learningPoint.topic} {draft.learningPoint.subtopic && `> ${draft.learningPoint.subtopic}`}
+                    </p>
+                    <span className="text-xs font-semibold bg-emerald-100 px-2 py-0.5 rounded text-emerald-800">
+                      {draft.learningPoint.difficulty}
+                    </span>
+                  </div>
                 </div>
               );
             })}
-            {!isSearching && searchResults.length === 0 && topicFilter && (
+            {!isSearching && searchResults.length === 0 && (topicFilter || subtopicFilter || difficultyFilter) && (
               <p className="text-sm text-slate-500 text-center py-4">該当する問題が見つかりません</p>
             )}
           </div>

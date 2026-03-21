@@ -13,34 +13,61 @@ export async function togglePublishSet(setId: string, isPublished: boolean) {
   revalidatePath("/question-sets");
 }
 
-export async function searchPublishedDrafts(topicFilter: string, query: string = "") {
+export async function searchPublishedDrafts(
+  topicFilter: string = "", 
+  subtopicFilter: string = "", 
+  difficultyFilter: any = "", 
+  query: string = ""
+) {
   return prisma.questionDraft.findMany({
     where: {
       isPublished: true,
-      learningPoint: {
-        topic: { contains: topicFilter, mode: "insensitive" },
-      },
       stem: { contains: query, mode: "insensitive" },
+      learningPoint: {
+        ...(topicFilter ? { topic: { contains: topicFilter, mode: "insensitive" } } : {}),
+        ...(subtopicFilter ? { subtopic: { contains: subtopicFilter, mode: "insensitive" } } : {}),
+        ...(difficultyFilter ? { difficulty: difficultyFilter } : {}),
+      },
     },
     take: 30,
-    include: { learningPoint: { select: { topic: true, subtopic: true } } },
+    include: { learningPoint: { select: { topic: true, subtopic: true, difficulty: true } } },
   });
 }
 
-export async function addDraftToSet(setId: string, draftId: string) {
-  const maxItem = await prisma.questionSetItem.findFirst({
-    where: { questionSetId: setId },
-    orderBy: { orderIndex: "desc" },
+export async function addManyDraftsToSet(setId: string, draftIds: string[]) {
+  await prisma.$transaction(async (tx) => {
+    const maxItem = await tx.questionSetItem.findFirst({
+      where: { questionSetId: setId },
+      orderBy: { orderIndex: "desc" },
+    });
+    
+    let nextIndex = maxItem ? maxItem.orderIndex + 1 : 0;
+    
+    const existing = await tx.questionSetItem.findMany({
+      where: { questionSetId: setId, questionDraftId: { in: draftIds } },
+      select: { questionDraftId: true }
+    });
+    const existingIds = new Set(existing.map(e => e.questionDraftId));
+    
+    const newDraftIds = draftIds.filter(id => !existingIds.has(id));
+    if (newDraftIds.length === 0) return;
+
+    for (const draftId of newDraftIds) {
+      await tx.questionSetItem.create({
+        data: {
+          questionSetId: setId,
+          questionDraftId: draftId,
+          orderIndex: nextIndex++,
+        },
+      });
+    }
+
+    await tx.questionDraft.updateMany({
+      where: { id: { in: newDraftIds } },
+      data: { isAvailableInQuiz: false },
+    });
   });
-  const nextIndex = maxItem ? maxItem.orderIndex + 1 : 0;
-  
-  await prisma.questionSetItem.create({
-    data: {
-      questionSetId: setId,
-      questionDraftId: draftId,
-      orderIndex: nextIndex,
-    },
-  });
+
   revalidatePath(`/admin/question-sets/${setId}`);
 }
 

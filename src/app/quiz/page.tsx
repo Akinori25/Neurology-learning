@@ -301,6 +301,7 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
 
   const where: Prisma.QuestionDraftWhereInput = {
     isPublished: true,
+    isAvailableInQuiz: true,
     ...(selectedTopic || selectedDifficulty
       ? {
           learningPoint: {
@@ -329,6 +330,7 @@ export default async function QuizPage({ searchParams }: QuizPageProps) {
         FROM "QuestionDraft" qd
         JOIN "LearningPoint" lp ON qd."learningPointId" = lp.id
         WHERE qd."isPublished" = true
+          AND qd."isAvailableInQuiz" = true
           ${selectedTopic
             ? Prisma.sql`AND lp."topic" = ${selectedTopic}`
             : Prisma.empty}

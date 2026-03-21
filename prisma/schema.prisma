@@ -132,8 +132,9 @@ model QuestionDraft {
   promptVersion  String?
   generationMeta Json?
 
-  isPublished Boolean   @default(false)
-  publishedAt DateTime?
+  isPublished       Boolean   @default(false)
+  publishedAt       DateTime?
+  isAvailableInQuiz Boolean   @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -245,6 +246,7 @@ model Exam {
   predictedMeanScore     Float?
   predictedStdDev        Float?
   passDeviationThreshold Float?
+  secondsPerQuestion     Int?
   isPublished            Boolean   @default(false)
   publishedAt            DateTime?
 

@@ -16,10 +16,12 @@ type AnswerRecord = {
 };
 
 export default function ExamRunnerClient({ exam, items }: UIProps) {
+  const timeLimit = Number(exam.secondsPerQuestion ?? 10);
+  
   const [started, setStarted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState<number>(timeLimit);
   const [isFinished, setIsFinished] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -70,7 +72,7 @@ export default function ExamRunnerClient({ exam, items }: UIProps) {
     } else {
       setSelected(null);
       setCurrentIndex(prev => prev + 1);
-      setTimeLeft(10);
+      setTimeLeft(timeLimit);
     }
   };
 
@@ -134,7 +136,7 @@ export default function ExamRunnerClient({ exam, items }: UIProps) {
         <h1 className="text-3xl font-bold mb-4">{exam.title}</h1>
         <p className="mb-8 text-slate-600">
           全 {items.length} 問の模擬試験です。<br />
-          各問題の制限時間は <strong>10秒</strong> で、自動的に次の問題へ遷移します。<br />
+          各問題の制限時間は <strong>{timeLimit}秒</strong> で、自動的に次の問題へ遷移します。<br />
           <span className="text-rose-500 font-semibold text-sm">※戻ることはできません。時間切れは不正解になります。</span>
         </p>
         <button
@@ -289,7 +291,7 @@ export default function ExamRunnerClient({ exam, items }: UIProps) {
       <div className="w-full bg-slate-100 h-2 rounded-full mb-8 overflow-hidden">
         <div 
           className="bg-emerald-500 h-full transition-all duration-1000 ease-linear" 
-          style={{ width: `${(timeLeft / 10) * 100}%` }}
+          style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
         />
       </div>
 

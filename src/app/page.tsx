@@ -4,13 +4,21 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-4xl p-6 space-y-8">
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">
-          神経内科専門医試験アプリ
-        </h1>
-        <p className="text-gray-500">
-          Neurology Board Exam Training
-        </p>
+      <header className="flex justify-between items-start">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">
+            神経内科専門医試験アプリ
+          </h1>
+          <p className="text-gray-500">
+            Neurology Board Exam Training
+          </p>
+        </div>
+        <Link 
+          href="/account"
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 transition"
+        >
+          アカウント設定
+        </Link>
       </header>
 
       <section className="space-y-4">
