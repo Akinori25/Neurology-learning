@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LogoutButton from "./LogoutButton";
 
 export default function Home() {
   return (
@@ -13,12 +14,15 @@ export default function Home() {
             Neurology Board Exam Training
           </p>
         </div>
-        <Link 
-          href="/account"
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 transition"
-        >
-          アカウント設定
-        </Link>
+        <div className="flex gap-2">
+          <Link 
+            href="/account"
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 transition"
+          >
+            アカウント設定
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
 
       <section className="space-y-4">
